@@ -5,7 +5,7 @@ exists in `fields_get` for the connected instance is used; a logical field with 
 simply not requested. `scripts/phase0_verify.py` reports the resolution for the real instance.
 
 Alternates cover known renames between Odoo versions (for example product_uom -> product_uom_id).
-Only what the app shows is read: the order header, and per order line the product code, name, quantity and unit.
+Only what the app shows is read: the order header, its transfer references, and per order line the product code, name, quantity and unit.
 """
 from __future__ import annotations
 
@@ -32,5 +32,19 @@ LOGICAL: dict[str, dict[str, list[str]]] = {
     "product.product": {
         "code": ["default_code"],
         "name": ["name"],
+    },
+    # The transfers ("Reference") of the order: choosing one narrows the order lines to what is in it.
+    "stock.picking": {
+        "name": ["name"],
+        "partner": ["partner_id"],
+        "scheduled": ["scheduled_date"],
+        "origin": ["origin"],
+        "state": ["state"],
+        "sale": ["sale_id"],
+        "source": ["location_id"],
+    },
+    "stock.move": {
+        "picking": ["picking_id"],
+        "product": ["product_id"],
     },
 }

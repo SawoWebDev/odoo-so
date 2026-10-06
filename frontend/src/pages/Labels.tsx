@@ -6,7 +6,7 @@ const EXAMPLE = 'file://172.16.0.4/Marketing/00%20MASTERLIST/01%20PRINTING%20FIL
 const when = (iso: string | null) => (iso ? new Date(iso).toLocaleString() : '—')
 const kb = (n: number) => (n >= 1024 * 1024 ? `${(n / 1024 / 1024).toFixed(1)} MB` : `${Math.max(1, Math.round(n / 1024))} KB`)
 
-/** The saved list of label PDFs: where they are, and whether each is still there (red = renamed / deleted). */
+/** The saved list of label files (PDFs and images): where they are, and whether each is still there (red = renamed / deleted). */
 export default function Labels({ me }: { me: Me }) {
   const admin = me.role === 'template_admin'
   const canCheck = me.role !== 'viewer'
@@ -37,7 +37,7 @@ export default function Labels({ me }: { me: Me }) {
 
   const add = () => run('add', async () => {
     const r = await api<{ result: { files: number } }>('/labels/locations', { method: 'POST', json: { url } })
-    setMsg(`Folder added: ${r.result.files.toLocaleString()} PDF file name(s) and locations saved.`)
+    setMsg(`Folder added: ${r.result.files.toLocaleString()} label file name(s) and locations saved (PDFs and images).`)
     setUrl(''); setPage(1); await refresh(1)
   })
   const fetchNew = (id: number) => run(`fetch${id}`, async () => {
@@ -70,7 +70,7 @@ export default function Labels({ me }: { me: Me }) {
     <div className="panel wide">
       <h3>Label files</h3>
       <p className="muted small">
-        Add the folder that holds the label PDFs. Every PDF&apos;s name and location is saved here, and printing fetches the file
+        Add the folder that holds the labels. Every PDF and image (PNG, JPG, GIF, BMP, TIFF, WebP) in it and in all its sub-folders: its name and location is saved here, and printing fetches the file
         from its saved location. If a file is later renamed or deleted, its row turns <b className="redtext">red</b>.
       </p>
 
@@ -84,7 +84,7 @@ export default function Labels({ me }: { me: Me }) {
 
       {st && (
         <table className="grid locs">
-          <thead><tr><th>Folder</th><th>Status</th><th>PDF files</th><th>Not found</th><th>Last read</th><th>Last checked</th><th /></tr></thead>
+          <thead><tr><th>Folder</th><th>Status</th><th>Files</th><th>Not found</th><th>Last read</th><th>Last checked</th><th /></tr></thead>
           <tbody>
             {st.locations.map((l) => (
               <tr key={l.id} className={!l.reachable ? 'gone' : ''}>
@@ -94,7 +94,7 @@ export default function Labels({ me }: { me: Me }) {
                 <td className={l.missing ? 'redtext' : ''}>{l.missing}</td>
                 <td>{when(l.last_fetched_at)}</td><td>{when(l.last_checked_at)}</td>
                 <td className="nowrap">
-                  {canCheck && <button disabled={!!busy} onClick={() => fetchNew(l.id)} title="Read the folder again: save new PDFs">{busy === `fetch${l.id}` ? 'Reading…' : 'Read folder'}</button>}{' '}
+                  {canCheck && <button disabled={!!busy} onClick={() => fetchNew(l.id)} title="Read the folder and all its sub-folders again: save every PDF and image found">{busy === `fetch${l.id}` ? 'Reading…' : 'Read folder'}</button>}{' '}
                   {admin && <button className="link" disabled={!!busy} onClick={() => remove(l.id, l.folder)}>Remove</button>}
                 </td>
               </tr>

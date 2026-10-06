@@ -21,6 +21,7 @@ from .deps import CurrentUser, ROLE_RANK, audit, current_user, odoo_client, requ
 from .labels import store
 from .labels.enrich import enrich
 from .labels.index import LabelIndex, get_index
+from .labels.kinds import is_image
 from .labels.pdfs import TooLarge, assemble, snapshot_file, snapshot_path
 from .models import LabelPrintJob
 from .odoo.client import OdooReadClient
@@ -93,7 +94,7 @@ def _copies(n: int, cap: int) -> int:
 
 def _respond(parts: list[tuple[Path, int]], headers: dict, settings: Settings) -> Response:
     """One file, one copy: stream it untouched (some are hundreds of MB). Otherwise combine."""
-    if len(parts) == 1 and parts[0][1] == 1:
+    if len(parts) == 1 and parts[0][1] == 1 and not is_image(parts[0][0]):
         p = parts[0][0]
         return FileResponse(p, media_type="application/pdf", headers=headers, content_disposition_type="inline",
                             filename=p.name)
@@ -101,6 +102,8 @@ def _respond(parts: list[tuple[Path, int]], headers: dict, settings: Settings) -
         data = assemble(parts, settings.label_max_mb * 1024 * 1024)
     except TooLarge as e:
         raise HTTPException(413, str(e))
+    except ValueError as e:  # a picture that cannot be read
+        raise HTTPException(422, str(e))
     return Response(data, media_type="application/pdf", headers={**headers, "Content-Disposition": 'inline; filename="labels.pdf"'})
 
 
@@ -122,7 +125,10 @@ def print_labels(body: PrintIn, user: CurrentUser = Depends(require_role("printe
     max_bytes = settings.label_max_mb * 1024 * 1024
     items = []
     for c in chosen:
-        sha, size = snapshot_file(c.absolute, max_bytes)
+        try:
+            sha, size = snapshot_file(c.absolute, max_bytes)
+        except ValueError as e:
+            raise HTTPException(422, f"{c.code}: {e}")
         items.append({"line_id": c.line_id, "code": c.code, "name": c.name, "file_id": c.file_id,
                       "path": f"{c.location}/{c.rel_path}", "sha256": sha, "size": size})
     parts = [(c.absolute, copies) for c in chosen]

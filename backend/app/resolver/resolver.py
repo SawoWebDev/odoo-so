@@ -13,14 +13,16 @@ from typing import Any, Callable
 from ..config import Settings
 from ..odoo.client import OdooReadClient
 from ..odoo.errors import OdooAccessError, OdooError, OdooMissingModel
-from .schema import Rec, Schema
+from .schema import Rec, Schema, or_domain
 
-GROUP_LABELS = {"header": "Sales Order", "lines": "Order lines"}
+GROUP_LABELS = {"header": "Sales Order", "references": "Reference", "lines": "Order lines"}
 
 FIELD_LABELS = {
     "header.name": "SO number", "header.state": "Status", "header.date_order": "Order date", "header.customer": "Customer",
     "header.shipping_address": "Delivery address", "header.customer_ref": "Customer reference",
     "header.salesperson": "Salesperson", "header.commitment_date": "Delivery date",
+    "ref.name": "Reference", "ref.contact": "Contact", "ref.scheduled": "Scheduled date",
+    "ref.origin": "Source document", "ref.state": "Status",
     "line.product.code": "Item code", "line.product.name": "Product name", "line.qty": "Ordered qty",
 }
 
@@ -98,7 +100,8 @@ class SOResolver:
             "so_id": so.id,
             "fetched_at": datetime.now(timezone.utc).astimezone().isoformat(timespec="seconds"),
             "odoo_uid": self.client.uid,
-            "groups": [self._run("header", self.g_header), self._run("lines", self.g_lines)],
+            "groups": [self._run("header", self.g_header), self._run("references", self.g_references),
+                       self._run("lines", self.g_lines)],
         }
 
     def _find_so(self, name: str) -> Rec:
@@ -130,6 +133,50 @@ class SOResolver:
     def products(self) -> dict[int, Rec]:
         pids = [r.m2o("product")[0] for r in self.lines()]
         return {r.id: r for r in self.s.read("product.product", [p for p in pids if p], None)}
+
+    @memo
+    def pickings(self) -> list[Rec]:
+        """Only the transfers whose Sales Order is this order (the "Sales Order" column in Odoo's Transfers list).
+        Where Odoo has no such field, fall back to the source document being exactly this SO number. Never anything else.
+        Of those, only the ones whose source location is `reference_source_location` (PL1/Output) are kept."""
+        name = self._so.text("name")
+        terms = self.s.d("stock.picking", "sale", "=", self._so.id) or self.s.d("stock.picking", "origin", "=", name)
+        if not terms:
+            return []
+        picks = self.s.search_read("stock.picking", terms, None, order="id desc")
+        picks = [p for p in picks if p.m2o("sale")[0] == self._so.id or (not p.has("sale") and p.text("origin") == name)]
+        want = self.cfg.reference_source_location.strip().strip("/").lower()
+        if want and picks and picks[0].has("source"):  # only transfers that leave from the configured source location
+            def leaves_from(p: Rec) -> bool:
+                loc = p.m2o("source")[1].strip().strip("/").lower()
+                return loc == want or loc.startswith(want + "/")
+            picks = [p for p in picks if leaves_from(p)]
+        return picks
+
+    def g_references(self) -> list[dict]:
+        """One row per transfer; `line_ids` are the order lines whose product is moved by it (what choosing it shows)."""
+        picks = self.pickings()
+        by_prod: dict[int, list[int]] = {}
+        for ln in self.lines():
+            by_prod.setdefault(ln.m2o("product")[0] or 0, []).append(ln.id)
+        moved: dict[int, set[int]] = {}
+        for mv in self.s.search_read_in("stock.move", "picking", [p.id for p in picks], None):
+            pid, prod = mv.m2o("picking")[0], mv.m2o("product")[0]
+            if pid and prod:
+                moved.setdefault(pid, set()).add(prod)
+        rows = []
+        for p in picks:
+            fields = {
+                "ref.name": f_text("ref.name", p.raw("name")),
+                "ref.contact": f_m2o("ref.contact", p, "partner"),
+                "ref.scheduled": f_date("ref.scheduled", p.raw("scheduled")),
+                "ref.origin": f_text("ref.origin", p.raw("origin")),
+                "ref.state": fld("ref.state", p.raw("state"), p.state_label("state")),
+            }
+            row = make_row("references", p.id, p.text("name"), fields, state=p.text("state"))
+            row["line_ids"] = sorted({lid for prod in moved.get(p.id, ()) for lid in by_prod.get(prod, [])})
+            rows.append(row)
+        return rows
 
     def g_header(self) -> list[dict]:
         so = self._so

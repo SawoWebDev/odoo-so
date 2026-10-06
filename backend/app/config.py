@@ -45,6 +45,9 @@ class Settings(BaseSettings):
     # When one item code has several PDFs, folders containing the first matching word here are preferred as the
     # default. Comma separated, case-insensitive, e.g. "Box Stickers,Individual".
     label_folder_priority: str = ""
+    # Only transfers that leave from this stock location are offered as a "Reference" (Odoo's source location, e.g.
+    # "PL1/Output" or one of its sub-locations). Empty = every transfer of the order.
+    reference_source_location: str = "PL1/Output"
     label_max_mb: int = 150  # larger PDFs can be viewed or printed alone but are not merged or kept in the snapshot
 
     @property

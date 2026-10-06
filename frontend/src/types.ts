@@ -21,6 +21,8 @@ export interface Row {
   disabled_reason: string
   disabled_kind: '' | 'no_qty' | 'no_label'
   pdf?: LinePdf
+  /** reference rows only: the order lines whose product this transfer moves */
+  line_ids?: number[]
 }
 
 export interface Group {

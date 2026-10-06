@@ -6,7 +6,7 @@ import type { Group, Resolved, Row } from '../types'
 const COLUMNS = ['line.product.code', 'line.product.name', 'line.qty']
 
 /** The order header is ONE record (an SO number is unique), so it is shown as a labelled form, not as a table. */
-function HeaderCard({ row }: { row: Row }) {
+function HeaderCard({ row, refs, active, onPick }: { row: Row; refs: Row[]; active: string | null; onPick: (id: string) => void }) {
   const others = Object.keys(row.fields).filter((k) => k !== 'header.name' && k !== 'header.state')
   return (
     <div className="headcard">
@@ -21,6 +21,17 @@ function HeaderCard({ row }: { row: Row }) {
             <dd>{row.fields[k].display || <em>—</em>}</dd>
           </div>
         ))}
+        {refs.length > 0 && (
+          <div className="hf">
+            <dt>Reference</dt>
+            <dd>
+              <select value={active ?? ''} onChange={(e) => e.target.value && onPick(e.target.value)} aria-label="Reference">
+                <option value="" disabled>Select a reference…</option>
+                {refs.map((r) => <option key={r.row_id} value={r.row_id}>{r.label}{r.fields['ref.state']?.display ? ` · ${r.fields['ref.state'].display}` : ''}</option>)}
+              </select>
+            </dd>
+          </div>
+        )}
       </dl>
     </div>
   )
@@ -53,7 +64,7 @@ function Pager({ info, selected, onPage, onSize }: {
 /** The PDF(s) found for the line's item code. */
 function LabelCell({ row, choice, setChoice }: { row: Row; choice: Choice; setChoice: (c: Choice) => void }) {
   const pdf = row.pdf
-  if (!pdf || pdf.files.length === 0) return <span className="nopdf">No label PDF</span>
+  if (!pdf || pdf.files.length === 0) return <span className="nopdf">No label file</span>
   const id = row.line_id as number
   const current = choice[id] ?? pdf.selected ?? pdf.files[0].id
   const f = pdf.files.find((x) => x.id === current) ?? pdf.files[0]
@@ -129,19 +140,31 @@ function LinesTable({ group, picked, setPicked, choice, setChoice }: {
 export default function OrderView({ resolved, picked, setPicked, choice, setChoice }: {
   resolved: Resolved; picked: Picked; setPicked: (p: Picked) => void; choice: Choice; setChoice: (c: Choice) => void
 }) {
+  const refs = resolved.groups.find((g) => g.id === 'references')
+  const hasRefs = !!refs && refs.rows.length > 0
+  const [active, setActive] = useState<string | null>(null)
+  const chosen = hasRefs ? refs.rows.find((r) => r.row_id === active) ?? null : null
+  const pick = (id: string) => { if (id !== active) { setActive(id); setPicked([]) } }  // another reference = another set of lines
+  const visible = (g: Group): Group => (chosen ? { ...g, rows: g.rows.filter((r) => chosen.line_ids?.includes(r.line_id as number)) } : g)
   return (
     <div className="results">
-      {resolved.groups.map((g) => (
+      {resolved.groups.filter((g) => g.id !== 'references').map((g) => (
         <section key={g.id} className={`group st-${g.status}`}>
           <header>
             <span className="title">{g.label}</span>
-            {g.id === 'lines' && g.rows.length > 0 && <span className="count">{g.rows.length}</span>}
+            {g.id === 'lines' && g.rows.length > 0 && (!hasRefs || chosen) && <span className="count">{visible(g).rows.length}</span>}
+            {g.id === 'lines' && chosen && <span className="muted small">in {chosen.label}</span>}
             {g.status !== 'ok' && <span className={`badge status-${g.status}`} title={g.message}>{g.status.replace('_', ' ')}</span>}
           </header>
           {g.rows.length === 0 && <p className="muted pad">{g.message || 'Nothing recorded for this order.'}</p>}
-          {g.rows.length > 0 && g.id === 'header' && <HeaderCard row={g.rows[0]} />}
-          {g.rows.length > 0 && g.id === 'lines' && (
-            <LinesTable group={g} picked={picked} setPicked={setPicked} choice={choice} setChoice={setChoice} />
+          {g.rows.length > 0 && g.id === 'header' && <HeaderCard row={g.rows[0]} refs={hasRefs ? refs.rows : []} active={chosen?.row_id ?? null} onPick={pick} />}
+          {g.rows.length > 0 && g.id === 'lines' && hasRefs && !chosen && (
+            <p className="muted pad">Select a reference in the Sales Order box above to see its order lines.</p>
+          )}
+          {g.rows.length > 0 && g.id === 'lines' && (!hasRefs || chosen) && (
+            visible(g).rows.length === 0
+              ? <p className="muted pad">No order line with an item code is moved by {chosen?.label}.</p>
+              : <LinesTable key={chosen?.row_id ?? 'all'} group={visible(g)} picked={picked} setPicked={setPicked} choice={choice} setChoice={setChoice} />
           )}
         </section>
       ))}

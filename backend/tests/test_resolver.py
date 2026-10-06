@@ -19,12 +19,43 @@ def o():
     return build_dataset(FakeOdoo())
 
 
-def test_only_header_and_lines_are_resolved_and_only_those_models_are_read(o):
+def test_only_header_references_and_lines_are_resolved_and_only_those_models_are_read(o):
     res = resolve(o)
-    assert [g["id"] for g in res["groups"]] == ["header", "lines"]
-    assert [g["label"] for g in res["groups"]] == ["Sales Order", "Order lines"]
+    assert [g["id"] for g in res["groups"]] == ["header", "references", "lines"]
+    assert [g["label"] for g in res["groups"]] == ["Sales Order", "Reference", "Order lines"]
     assert all(g["status"] == "ok" for g in res["groups"])
-    assert {m for m, _ in o.calls if m != "fields_get"} <= {"sale.order", "sale.order.line", "product.product"}
+    assert {m for m, _ in o.calls if m != "fields_get"} <= {
+        "sale.order", "sale.order.line", "product.product", "stock.picking", "stock.move"}
+
+
+def test_references_list_the_orders_transfers_with_the_lines_each_one_moves(o):
+    refs = group(resolve(o), "references")["rows"]
+    assert [r["label"] for r in refs] == ["PL1/OUT/00031"]  # only the transfer whose Sales Order is this SO
+    done = refs[0]
+    assert done["fields"]["ref.contact"]["display"] == "ACME Ltd" and done["fields"]["ref.state"]["display"] == "Done"
+    assert done["fields"]["ref.origin"]["display"] == "S00123" and done["line_ids"] == [11]
+
+
+def test_only_transfers_leaving_from_the_configured_source_location_are_offered(o, monkeypatch):
+    from app.config import get_settings
+    assert [r["label"] for r in group(resolve(o), "references")["rows"]] == ["PL1/OUT/00031"]  # not PL2/OUT/00033
+    monkeypatch.setenv("REFERENCE_SOURCE_LOCATION", "")
+    get_settings.cache_clear()
+    try:
+        assert [r["label"] for r in group(resolve(o), "references")["rows"]] == ["PL2/OUT/00033", "PL1/OUT/00031"]
+    finally:
+        get_settings.cache_clear()
+
+
+def test_an_order_without_transfers_has_an_empty_reference_group(o):
+    assert group(resolve(o, "S00124"), "references")["status"] == "empty"
+
+
+def test_denied_transfers_do_not_break_header_or_lines(o):
+    o.deny = {"stock.picking"}
+    res = resolve(o)
+    assert group(res, "references")["status"] == "not_accessible"
+    assert group(res, "lines")["status"] == "ok" and group(res, "header")["status"] == "ok"
 
 
 def test_header_values_and_labels(o):

@@ -39,6 +39,13 @@ def default_fields(version: str = "17") -> dict[str, dict]:
         },
         "product.packaging": {"product_id": _f(M2O, "product.product"), "name": _f(), "qty": _f("float"), "barcode": _f()},
         "uom.uom": {"name": _f(), "factor": _f("float"), "category_id": _f(M2O, "uom.category")},
+        "stock.picking": {
+            "name": _f(), "partner_id": _f(M2O, "res.partner"), "scheduled_date": _f("datetime"), "origin": _f(),
+            "state": _f("selection", selection=[("assigned", "Ready"), ("done", "Done"), ("confirmed", "Waiting")]),
+            "sale_id": _f(M2O, "sale.order"), "location_id": _f(M2O, "stock.location"),
+        },
+        "stock.location": {"name": _f()},
+        "stock.move": {"picking_id": _f(M2O, "stock.picking"), "product_id": _f(M2O, "product.product")},
         "res.users": {"name": _f(), "login": _f()},
         "res.partner": {"name": _f()},
     }
@@ -96,6 +103,8 @@ class FakeTransport:
             order = params.get("order")
             if order and order.split(",")[0].strip().split(" ")[0] == "sequence":
                 rows = sorted(rows, key=lambda r: (r.get("sequence", 0), r["id"]))
+            if order and order.strip() == "id desc":
+                rows = sorted(rows, key=lambda r: r["id"], reverse=True)
             if params.get("limit"):
                 rows = rows[: params["limit"]]
             if method == "search":
@@ -203,6 +212,17 @@ def build_dataset(o: FakeOdoo) -> FakeOdoo:
           display_type=False, **{uom: 1})  # ordered qty 0
     o.add("sale.order.line", id=16, order_id=3, product_id=101, name="Resale Gift Box", product_uom_qty=3.0, sequence=2,
           display_type=False, **{uom: 1})
+    # S00123 has one transfer; PL2/OUT/00032 only quotes it as source document and is NOT linked to the order
+    o.add("stock.picking", id=31, name="PL1/OUT/00031", partner_id=1, scheduled_date="2026-10-02 08:00:00",
+          origin="S00123", state="done", sale_id=1, location_id=61)
+    o.add("stock.picking", id=32, name="PL2/OUT/00032", partner_id=False, scheduled_date="2026-10-03 08:00:00",
+          origin="S00123", state="confirmed", sale_id=False, location_id=61)  # not related to the order's Sales Order: must not be listed
+    o.add("stock.location", id=61, name="PL1/Output")
+    o.add("stock.location", id=62, name="PL2/Output")
+    o.add("stock.picking", id=33, name="PL2/OUT/00033", partner_id=1, scheduled_date="2026-10-04 08:00:00",
+          origin="S00123", state="done", sale_id=1, location_id=62)  # same order, but leaves from another location
+    o.add("stock.move", id=41, picking_id=31, product_id=100)
+    o.add("stock.move", id=42, picking_id=32, product_id=102)
     o.add("sale.order.line", id=13, order_id=1, product_id=False, name="Notes", sequence=2, display_type="line_note")
     o.add("sale.order.line", id=14, order_id=1, product_id=102, name="Surcharge", product_uom_qty=1.0, sequence=3,
           display_type=False, **{uom: 1})  # a fee line: product without an item code

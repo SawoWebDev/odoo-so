@@ -131,7 +131,7 @@ everyone's history.
 
 ```bash
 docker compose build backend
-docker compose run --rm backend python -m pytest -q        # 178 tests, a few seconds
+docker compose run --rm backend python -m pytest -q        # 192 tests, a few seconds
 (cd frontend && npm install && npm test)                    # selection and paging logic (vitest)
 ```
 
