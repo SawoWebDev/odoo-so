@@ -1,35 +1,40 @@
 # VERIFY REPORT (Phase 0)
 
-**Status: NOT YET RUN against a real Odoo instance.**
-
-This file is overwritten by the Phase 0 script. Nothing in this repository has been checked against your real Odoo
-yet: the application was built and tested against an in-memory Odoo double and a mock Odoo HTTP server that speak the
-protocols as documented. Every `[VERIFY]` item in the guideline stays open until you run:
+**Status: the field-level report has NOT been generated from your Odoo yet.** It is overwritten by the Phase 0 script:
 
 ```bash
-cp .env.example .env            # fill ODOO_URL, ODOO_DB, APP_SECRET_KEY
-docker compose run --rm -v "$PWD/docs:/srv/docs" backend python -m scripts.phase0_verify --so S00123
+docker compose run --rm -v "$PWD/docs:/srv/docs" backend python -m scripts.phase0_verify --so <a real SO number>
 ```
 
-(Use a real, ideally make-to-order, sales order number.) The script asks for an Odoo login and password / API key,
-detects the server version and transport, runs `fields_get` on every model in guideline section 5, lists each candidate
-field as OK / alternate / **MISSING**, probes the SO link paths, resolves your sample order and prints the group counts.
+It asks for an Odoo login and password (never stored), detects the server version and transport, runs `fields_get` on the
+three models the app reads (`sale.order`, `sale.order.line`, `product.product`), lists each candidate field as
+OK / alternate / **MISSING**, resolves the sample order and prints its header and line counts.
 
-## What the application already does to stay safe before verification
+## What has been checked against your real systems so far
 
-| [VERIFY] item | Behaviour until verified |
+| Item | Result |
 |---|---|
-| Field names per Odoo version | Candidates are intersected with `fields_get` at runtime. A field that does not exist is not requested; it never causes an error and is never guessed. Known renames are handled (`product_uom`/`product_uom_id`, `qty_done`/`quantity`, `date_planned_start`/`date_start`). |
-| API transport | `ODOO_TRANSPORT=auto` probes the server (version, then JSON-RPC, XML-RPC, JSON-2). |
-| SO to MO / PO / picking / invoice links | Several paths are unioned (procurement group, origin, `sale_id`, `sale_line_id`, invoice lines). Phase 0 reports which of them exist. |
-| Weight / volume units | Assumed kg and m3; `WEIGHT_FACTOR_TO_KG` / `VOLUME_FACTOR_TO_M3` convert if your instance differs. A value of 0 is treated as **missing**, never printed as zero. |
-| JSON-2 (Odoo 19+) identity | JSON-2 has no authenticate call. The user id is read from `res.users` by login (see section 5 of the generated report). |
+| Odoo server | `https://erp.sawo.com`, **Odoo 17.0 Enterprise**, database `sawo`, valid TLS certificate (probed without credentials) |
+| Odoo login | Works with a normal user password over JSON-RPC (confirmed by a user signing in and loading order S08217: header and 101 lines) |
+| Label folder `\\172.16.0.4\Marketing\00 MASTERLIST\01 PRINTING FILES` | Readable from Windows: 2,621 PDFs, named `<item code>.pdf`, nested in `01 SAWO` / `02 CLIENT`; 1,872 distinct names, 595 of them in 2 or more folders; sample codes of S08217 matched (559-BL, 560-BL, 393-BL, 460-D, 735-4SCD-R, SET-TRAD-D...) |
+| Your example URL `file://172.16.0.4/Marketing/00%20MASTERLIST/01%20PRINTING%20FILES/01%20SAWO/` | Maps correctly to the mounted folder and saved 11 sample PDFs into the app's database (tested on a local copy that mirrors the share's layout) |
+| Docker reading the real share | **Not yet.** The share refuses anonymous access ("permission denied"), so a Windows login must be put in `.env` (README) |
 
-## Open business decisions (guideline section 18)
+## What the app reads from Odoo
 
-| Decision | Current behaviour |
+| Model | Fields (first existing candidate is used) |
 |---|---|
-| Meaning of LOGO YES/NO | Plain print-time toggle. No meaning assumed. |
-| PEFC mark on every product or only certified ones | Plain print-time toggle. No rule assumed. |
-| Label scope (per carton or per line) | Template setting `scope`; PCS/KGS/CBM mode is chosen at print time. |
-| Printer type | A4 sheet PDF out of the box; ZPL supported for thermal printers. |
+| `sale.order` | `name`, `state`, `date_order`, `partner_id`, `partner_shipping_id`, `client_order_ref`, `user_id`, `commitment_date` |
+| `sale.order.line` | `order_id`, `product_id`, `name`, `product_uom_qty`, `product_uom` / `product_uom_id`, `sequence`, `display_type` |
+| `product.product` | `default_code` (the item code), `name` |
+
+A field that does not exist on your version is not requested and never causes an error.
+
+## Open items
+
+| Item | Status |
+|---|---|
+| JSON-2 (Odoo 19+) identity | Not relevant on Odoo 17; only if you upgrade |
+| Error mapping (no access / module missing) | Tested against a mock; confirm with one user who cannot read sale orders |
+| Which PDF is the normal one when a code has several | Decide, then set `LABEL_FOLDER_PRIORITY` |
+| Whether to stamp the SO number or quantity on the PDF | Not done: PDFs print as designed |

@@ -9,3 +9,4 @@ backend/.venv/
 .scratch/
 dev.db
 storage/
+labels/

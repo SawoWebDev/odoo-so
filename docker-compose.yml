@@ -34,6 +34,9 @@ services:
       STORAGE_DIR: /data/storage
     volumes:
       - storage:/data/storage
+      # The label PDFs, read-only. Default: a local folder (LABEL_LOCAL_DIR). For the network share use
+      # docker-compose.network.yml (see README: set COMPOSE_FILE and the LABEL_SHARE_* values in .env).
+      - ${LABEL_LOCAL_DIR:-./labels}:/labels:ro
     depends_on:
       db:
         condition: service_healthy

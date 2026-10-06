@@ -1,0 +1,21 @@
+# Use the label PDFs straight from the Windows network share, read-only. Enable by adding to .env:
+#     COMPOSE_FILE=docker-compose.yml:docker-compose.network.yml
+#     LABEL_SHARE_USER=<a Windows account that can read the share>
+#     LABEL_SHARE_PASSWORD=<its password>          (must not contain a comma)
+#     LABEL_SHARE_DOMAIN=<its domain, default WORKGROUP>
+# The whole share is mounted at /labels (LABEL_MOUNT_DIR). Folders are then added on the "Label files" tab, e.g.
+#     file://172.16.0.4/Marketing/00%20MASTERLIST/01%20PRINTING%20FILES/01%20SAWO/
+# Docker mounts the share itself (SMB 3), so this works regardless of who is logged in to Windows.
+services:
+  backend:
+    volumes: !override
+      - storage:/data/storage
+      - labels:/labels:ro
+
+volumes:
+  labels:
+    driver: local
+    driver_opts:
+      type: cifs
+      device: ${LABEL_SHARE:-//172.16.0.4/Marketing}
+      o: "username=${LABEL_SHARE_USER:?set LABEL_SHARE_USER in .env},password=${LABEL_SHARE_PASSWORD:?set LABEL_SHARE_PASSWORD in .env},domain=${LABEL_SHARE_DOMAIN:-WORKGROUP},vers=${LABEL_SHARE_VERS:-3.0},ro,uid=1000,gid=1000,file_mode=0444,dir_mode=0555,noserverino"

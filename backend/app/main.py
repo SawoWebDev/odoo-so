@@ -8,15 +8,13 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
 from .auth.router import router as auth_router
-from .catalog.catalog import seed_catalog
 from .config import get_settings
 from .db import Base, SessionLocal, get_engine
 from .deps import csrf_guard
-from .presets import router as presets_router
-from .render.router import router as render_router
-from .seed.sawo import ensure_sawo_template
+from .labels import store
+from .labels.router import router as labels_router
+from .printing import router as print_router
 from .so_router import router as so_router
-from .templates_lib.router import router as templates_router
 
 log = logging.getLogger("sticker")
 
@@ -24,11 +22,13 @@ log = logging.getLogger("sticker")
 def init_app_data() -> None:
     from . import models  # noqa: F401  (register tables)
 
+    settings = get_settings()
     Base.metadata.create_all(get_engine())
+    store.ensure_schema(settings)
     db = SessionLocal()
     try:
-        seed_catalog(db)
-        ensure_sawo_template(db)
+        store.backfill_urls(db, settings)
+        store.seed_default(db, settings)
     finally:
         db.close()
 
@@ -42,7 +42,7 @@ async def lifespan(app: FastAPI):
     yield
 
 
-app = FastAPI(title="SO Sticker System", version="1.0.0", lifespan=lifespan, docs_url="/api/docs",
+app = FastAPI(title="SO Sticker System", version="3.0.0", lifespan=lifespan, docs_url="/api/docs",
               openapi_url="/api/openapi.json", dependencies=[Depends(csrf_guard)])
 
 
@@ -70,6 +70,5 @@ def health():
 
 app.include_router(auth_router)
 app.include_router(so_router)
-app.include_router(templates_router)
-app.include_router(render_router)
-app.include_router(presets_router)
+app.include_router(labels_router)
+app.include_router(print_router)

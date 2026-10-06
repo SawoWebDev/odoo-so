@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { Fragment, useEffect, useState } from 'react'
 import { ApiError, api, apiBlob } from '../api'
 import type { Job, Me } from '../types'
 
@@ -16,10 +16,9 @@ export default function History({ me }: { me: Me }) {
     setError(''); setMsg('')
     try {
       const { blob, headers } = await apiBlob(`/print-jobs/${j.id}/reprint`, {})
-      const url = URL.createObjectURL(blob)
-      if (blob.type.startsWith('application/pdf')) window.open(url, '_blank')
-      else { const a = document.createElement('a'); a.href = url; a.download = `reprint_${j.id}.zpl`; a.click() }
-      setMsg(`Reprinted job #${j.id} as #${headers.get('X-Print-Job-Id')} using template version ${j.template_version} and the original values.`)
+      window.open(URL.createObjectURL(blob), '_blank')
+      const src = headers.get('X-Reprint-Source')
+      setMsg(`Reprinted job #${j.id} as #${headers.get('X-Print-Job-Id')} from the ${src === 'snapshot' ? 'files kept at print time' : 'label folder'}.`)
       load()
     } catch (e) { setError(e instanceof ApiError ? e.message : String(e)) }
   }
@@ -34,40 +33,37 @@ export default function History({ me }: { me: Me }) {
       {error && <p className="error">{error}</p>}
       {msg && <p className="ok">{msg}</p>}
       <table className="grid">
-        <thead><tr><th>#</th><th>When</th><th>SO</th><th>Template</th><th>Copies</th><th>Layout</th><th>Printer</th><th /></tr></thead>
+        <thead><tr><th>#</th><th>When</th><th>SO</th><th>Labels</th><th>Copies</th><th>Printer</th><th /></tr></thead>
         <tbody>
           {jobs.map((j) => (
-            <>
-              <tr key={j.id}>
-                <td>{j.id}{j.options.reprint_of ? <small className="muted"> (reprint of #{String(j.options.reprint_of)})</small> : null}</td>
+            <Fragment key={j.id}>
+              <tr>
+                <td>{j.id}{j.reprint_of ? <small className="muted"> (reprint of #{j.reprint_of})</small> : null}</td>
                 <td>{j.created_at?.slice(0, 16).replace('T', ' ')}</td>
                 <td>{j.so_name}</td>
-                <td>{j.template} <span className="badge">v{j.template_version}</span></td>
-                <td>{j.copies}</td><td>{String(j.layout.kind ?? '')}</td><td>{j.printer}</td>
+                <td>{j.items.map((i) => i.code).join(', ')}</td>
+                <td>{j.copies}</td><td>{j.printer}</td>
                 <td>
-                  <button className="link" onClick={() => setOpen(open === j.id ? null : j.id)}>{open === j.id ? 'Hide' : 'Details'}</button>{' '}
+                  <button className="link" onClick={() => setOpen(open === j.id ? null : j.id)}>{open === j.id ? 'Hide' : 'Files'}</button>{' '}
                   {me.role !== 'viewer' && <button onClick={() => reprint(j)}>Reprint</button>}
                 </td>
               </tr>
               {open === j.id && (
-                <tr key={`${j.id}d`}><td colSpan={8}>
+                <tr><td colSpan={7}>
                   <table className="calc">
-                    <thead><tr><th>Label</th><th>PCS (calc → printed)</th><th>KGS</th><th>CBM</th></tr></thead>
+                    <thead><tr><th>Item code</th><th>File used</th><th>Kept copy</th></tr></thead>
                     <tbody>
-                      {Object.entries(j.calculated).map(([k, c]) => (
-                        <tr key={k}><th>{k}</th>
-                          {(['pcs', 'kgs', 'cbm'] as const).map((f) => (
-                            <td key={f}>{c.calculated?.[f] ?? '—'} → <b>{c.final?.[f] ?? '—'}</b>{f in (c.overrides ?? {}) ? ' (overridden)' : ''}</td>
-                          ))}
-                        </tr>
+                      {j.items.map((i) => (
+                        <tr key={i.line_id}><td>{i.code}</td><td>{i.path.split('/').slice(-4).join(' / ')}</td>
+                          <td>{i.sha256 ? `yes (${Math.round(i.size / 1024)} KB)` : 'no - too large, reprinted from its saved location'}</td></tr>
                       ))}
                     </tbody>
                   </table>
                 </td></tr>
               )}
-            </>
+            </Fragment>
           ))}
-          {!jobs.length && <tr><td colSpan={8} className="muted">No print jobs yet.</td></tr>}
+          {!jobs.length && <tr><td colSpan={7} className="muted">No print jobs yet.</td></tr>}
         </tbody>
       </table>
     </div>

@@ -53,8 +53,7 @@ def test_each_transport_authenticates_reads_and_resolves_the_same_so(mock, trans
     assert set(statuses.values()) == {"ok"}, statuses
     lines = next(g for g in res["groups"] if g["id"] == "lines")["rows"][0]["fields"]
     assert lines["line.product.code"]["display"] == "220-TD" and lines["line.qty"]["uom"] == "Units"
-    delivery = next(g for g in res["groups"] if g["id"] == "delivery")
-    assert [r["fields"]["delivery.lot"]["display"] for r in delivery["rows"]] == ["LOT-A1", "LOT-A2"]
+    assert [g["id"] for g in res["groups"]] == ["header", "lines"]
     # defence in depth: what physically crossed the wire is reads only
     assert set(app.state.wire_methods) <= {"search_read", "read", "search", "fields_get", "read_group"}
     assert app.state.wire_methods
@@ -70,14 +69,15 @@ def test_wrong_password_is_an_auth_error(mock, transport):
 @pytest.mark.parametrize("transport", ["jsonrpc", "xmlrpc", "json2"])
 def test_access_errors_and_missing_models_map_to_group_statuses(mock, transport):
     url, _, odoo = mock()
-    odoo.deny = {"mrp.production"}
-    odoo.missing = {"purchase.order.line"}
+    odoo.deny = {"sale.order.line"}
     c = make_client(transport, url, "db")
     c.authenticate("bob", "pw-bob")
     groups = {g["id"]: g["status"] for g in SOResolver(c, get_settings()).resolve("S00123")["groups"]}
-    assert groups["mrp"] == "not_accessible"
-    assert groups["purchasing"] == "not_installed"
-    assert groups["delivery"] == "ok" and groups["lines"] == "ok"
+    assert groups == {"header": "ok", "lines": "not_accessible"}
+    odoo.deny = set()
+    odoo.missing = {"sale.order.line"}
+    groups = {g["id"]: g["status"] for g in SOResolver(c, get_settings()).resolve("S00123")["groups"]}
+    assert groups == {"header": "ok", "lines": "not_installed"}
 
 
 def test_unreachable_server_is_a_connection_error():

@@ -16,7 +16,7 @@ export default function Users() {
   return (
     <div className="panel wide">
       <h3>App roles</h3>
-      <p className="muted small">Roles only control what this tool lets a person do (search, print, manage templates). Odoo still decides which data each person can see. People appear here after their first sign-in.</p>
+      <p className="muted small">Roles only control what this tool lets a person do (search, print, manage roles). Odoo still decides which data each person can see. People appear here after their first sign-in.</p>
       {error && <p className="error">{error}</p>}
       <table className="grid">
         <thead><tr><th>Odoo login</th><th>Name</th><th>Role</th><th>Last sign-in</th></tr></thead>
@@ -28,7 +28,7 @@ export default function Users() {
                 <select value={u.role} onChange={(e) => set(u, e.target.value as Role)}>
                   <option value="viewer">Viewer — search and view</option>
                   <option value="printer">Printer — viewer + print</option>
-                  <option value="template_admin">Template admin — printer + templates</option>
+                  <option value="template_admin">Admin — printer + manage roles, see all print history</option>
                 </select>
               </td>
               <td>{u.last_login?.slice(0, 16).replace('T', ' ')}</td>

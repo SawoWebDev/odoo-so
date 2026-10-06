@@ -16,21 +16,15 @@ from datetime import datetime, timezone
 from app.config import Settings, get_settings
 from app.odoo.connect import Connector
 from app.odoo.errors import OdooError
-from app.resolver.fieldmap import LINK_PROBES, LOGICAL
+from app.resolver.fieldmap import LOGICAL
 from app.resolver.resolver import SONotFound, SOResolver
 from app.resolver.schema import Schema
 
 MANUAL_ITEMS = [
-    ("Unit of measure for weight / volume", "Products' weight/volume are assumed to be kg / m3. Check Inventory > Settings > "
-     "Units of Measure. If the instance uses lb / ft3 set WEIGHT_FACTOR_TO_KG / VOLUME_FACTOR_TO_M3 in .env."),
-    ("UoM conversion factor semantics", "Conversion uses uom.uom.factor within one category (reference qty = qty / factor). "
-     "Confirm on a product sold in a non-base unit. Odoo 19 reworked UoMs: re-check."),
     ("Odoo 19 /json/2 identity", "JSON-2 has no authenticate call, so the user id is read from res.users by login. "
      "Confirm the key owner equals the login, or prefer jsonrpc/xmlrpc where available."),
     ("Error mapping", "AccessError/AccessDenied/missing-model are recognised from JSON-RPC error names, XML-RPC fault codes 3/4 "
-     "and JSON-2 HTTP status. Confirm with one user lacking Manufacturing rights."),
-    ("Make-to-order links", "SO -> MO via procurement group and origin; SO line -> PO line via sale_line_id; dropship POs via origin. "
-     "Compare the Manufacturing and Purchasing groups of a real MTO order with Odoo's own smart buttons."),
+     "and JSON-2 HTTP status. Confirm with one user who cannot read sale orders."),
     ("Read-only Odoo group", "Recommended: put users of this tool in a read-only access group (defence in depth)."),
 ]
 
@@ -73,27 +67,15 @@ def verify(client, settings: Settings, so: str | None, transport: str, server: d
                 w(row(logical, f"candidates: {', '.join(cands)}", "-", "**MISSING**"))
         w("")
 
-    w("## 3. Link paths (guideline 5.1)\n")
-    w(row("Link", "Model.field", "Status"))
-    w(row("---", "---", "---"))
-    for label, model, logical in LINK_PROBES:
-        if not s.has_model(model):
-            w(row(label, f"{model}", "model not installed"))
-            continue
-        actual = s.pick(model, logical)
-        w(row(label, f"`{model}.{actual}`" if actual else f"{model} ({logical})", "OK" if actual else "**MISSING**"))
-    w("")
-
     if so:
-        w(f"## 4. Sample order `{so}`\n")
+        w(f"## 3. Sample order `{so}`\n")
         try:
             res = SOResolver(client, settings).resolve(so)
             w(row("Group", "Status", "Rows", "Message"))
             w(row("---", "---", "---", "---"))
             for g in res["groups"]:
                 w(row(g["label"], g["status"], len(g["rows"]), g["message"]))
-            w("\nCompare these counts with the same order in Odoo (smart buttons: deliveries, manufacturing, purchase, invoices). "
-              "Sample header values:\n")
+            w("\nCompare the number of order lines with the same order in Odoo. Sample header values:\n")
             hdr = res["groups"][0]["rows"][0]["fields"]
             for k, v in hdr.items():
                 w(f"- `{k}` = {v['display']!r}")
@@ -103,21 +85,21 @@ def verify(client, settings: Settings, so: str | None, transport: str, server: d
         except OdooError as e:
             w(f"Resolver failed: {e}\n")
 
-    w("## 5. Items that need a human decision or confirmation\n")
+    w("## 4. Items that need a human decision or confirmation\n")
     w(row("Item", "What to check"))
     w(row("---", "---"))
     for a, b in MANUAL_ITEMS:
         w(row(a, b))
-    w("\n## 6. Summary\n")
+    w("\n## 5. Summary\n")
     w(f"- Models not available: {', '.join(missing_models) or 'none'}")
     w(f"- Candidate fields missing: **{missing_fields}**")
-    w("- **Gate:** review the MISSING rows and the table in section 5, then confirm the field list before relying on Phase 1+ output.")
+    w("- **Gate:** review the MISSING rows and the table in section 4, then confirm the field list before relying on the output.")
     return "\n".join(out) + "\n"
 
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--so", help="sample SO number to resolve (recommended: a make-to-order order)")
+    ap.add_argument("--so", help="sample SO number to resolve (any normal sales order)")
     ap.add_argument("--out", default="docs/VERIFY_REPORT.md")
     ns = ap.parse_args()
     settings = get_settings()

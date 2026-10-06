@@ -26,7 +26,7 @@ export default function Login({ onLogin }: { onLogin: (m: Me) => void }) {
         <label className="field">Odoo login
           <input value={login} onChange={(e) => setLogin(e.target.value)} autoComplete="username" autoFocus required />
         </label>
-        <label className="field">Password or API key
+        <label className="field">Odoo password
           <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="current-password" required />
         </label>
         {error && <p className="error">{error}</p>}

@@ -12,11 +12,11 @@ from scripts.phase0_verify import verify
 from tests.fake_odoo import FakeOdoo, build_dataset
 
 
-def test_report_lists_fields_links_sample_order_and_open_items():
-    odoo = build_dataset(FakeOdoo(version="16"))
-    del odoo.fields["mrp.workorder"]  # simulate a module that is not installed
+def test_report_lists_fields_sample_order_and_open_items():
+    odoo = build_dataset(FakeOdoo(version="18"))
+    del odoo.fields["res.users"]  # (not in the report) - keep the report working
     s = socket.socket(); s.bind(("127.0.0.1", 0)); port = s.getsockname()[1]; s.close()
-    server = uvicorn.Server(uvicorn.Config(create_mock_app(odoo, (16, 0)), host="127.0.0.1", port=port, log_level="error"))
+    server = uvicorn.Server(uvicorn.Config(create_mock_app(odoo, (18, 0)), host="127.0.0.1", port=port, log_level="error"))
     th = threading.Thread(target=server.run, daemon=True); th.start()
     while not server.started:
         time.sleep(0.05)
@@ -27,9 +27,9 @@ def test_report_lists_fields_links_sample_order_and_open_items():
         report = verify(client, settings, "S00123", "jsonrpc", conn.server_info())
     finally:
         server.should_exit = True; th.join(timeout=5)
-    assert "# VERIFY REPORT (Phase 0)" in report and "major 16" in report
-    assert "### `sale.order.line`" in report and "`product_uom`" in report
-    assert "`qty_done`" in report  # Odoo 16 alternate detected for the done quantity
-    assert "`mrp.workorder`: NOT AVAILABLE" in report
-    assert "SO -> pickings" in report and "Sample order `S00123`" in report
+    assert "# VERIFY REPORT (Phase 0)" in report and "major 18" in report
+    assert "### `sale.order.line`" in report
+    assert "`product_uom_id`" in report and "alternate" in report  # Odoo 18 rename detected for the unit field
+    assert "### `product.product`" in report and "`default_code`" in report
+    assert "Sample order `S00123`" in report
     assert "Items that need a human decision" in report and "Gate:" in report

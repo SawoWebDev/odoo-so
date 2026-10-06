@@ -1,63 +1,56 @@
 import { describe, expect, it } from 'vitest'
-import {
-  applyPreset, columnState, groupState, pruneSelection, rowState, toPresetRules, toggleCell, toggleColumn, toggleGroup,
-  toggleRow, toRequest,
-} from './selection'
-import type { Group, Resolved, Row } from './types'
+import { buildItems, canTick, prune, toggle } from './selection'
+import type { LabelFile, Resolved, Row } from './types'
 
-const f = (display: string) => ({ raw: display, display, type: 'text', uom: null })
-const row = (id: string, keys: string[]): Row => ({
-  row_id: id, label: id, scope: 'line', line_id: 1, state: '', meta: {}, fields: Object.fromEntries(keys.map((k) => [k, f(k)])),
+let nextId = 100
+const file = (folder: string, name = 'X.pdf'): LabelFile => ({ id: nextId++, name, folder, location_id: 1 })
+const row = (id: number, over: Partial<Row> = {}, files: LabelFile[] = [file('Box')]): Row => ({
+  row_id: `lines:${id}`, label: `L${id}`, line_id: id, state: '', fields: {}, disabled: false, disabled_reason: '',
+  disabled_kind: '', pdf: { code: `C${id}`, files, selected: files[0]?.id ?? null }, ...over,
 })
-const lines: Group = { id: 'lines', label: 'Order lines', status: 'ok', message: '', rows: [row('lines:1', ['a', 'b']), row('lines:2', ['a', 'b'])] }
-const header: Group = { id: 'header', label: 'Header', status: 'ok', message: '', rows: [row('header:1', ['h'])] }
-const resolved: Resolved = { so: 'S1', fetched_at: '', warnings: [], groups: [header, lines] }
+const resolved = (rows: Row[]): Resolved => ({
+  so: 'S1', fetched_at: '', groups: [{ id: 'header', label: 'Sales Order', status: 'ok', message: '', rows: [] },
+    { id: 'lines', label: 'Order lines', status: 'ok', message: '', rows }],
+})
 
-describe('selection basket', () => {
-  it('ticks a single field', () => {
-    const s = toggleCell({}, lines.rows[0], 'a')
-    expect(s).toEqual({ 'lines:1': ['a'] })
-    expect(rowState(s, lines.rows[0])).toBe('some')
-    expect(groupState(s, lines)).toBe('some')
-    expect(toggleCell(s, lines.rows[0], 'a')).toEqual({})
+describe('ticking order lines', () => {
+  it('toggles a line and remembers the order ticked', () => {
+    let p = toggle([], row(2))
+    p = toggle(p, row(1))
+    expect(p).toEqual([2, 1])
+    expect(toggle(p, row(2))).toEqual([1])
   })
 
-  it('ticks and clears a whole row', () => {
-    const s = toggleRow({}, lines.rows[0])
-    expect(rowState(s, lines.rows[0])).toBe('all')
-    expect(rowState(s, lines.rows[1])).toBe('none')
-    expect(toggleRow(s, lines.rows[0])).toEqual({})
-    expect(toggleRow(toggleCell({}, lines.rows[0], 'a'), lines.rows[0])['lines:1']).toEqual(['a', 'b']) // partial -> all
+  it('never ticks a greyed line (qty 0) or a line with no usable PDF (warning colour)', () => {
+    const grey = row(3, { disabled: true, disabled_kind: 'no_qty', disabled_reason: 'qty 0' })
+    const warn = row(4, { disabled: true, disabled_kind: 'no_label', disabled_reason: 'No label PDF' }, [])
+    expect(canTick(grey)).toBe(false)
+    expect(canTick(warn)).toBe(false)
+    expect(toggle([], grey)).toEqual([])
+    expect(toggle([1], warn)).toEqual([1])
+  })
+})
+
+describe('building the print request', () => {
+  const two = [file('Individual'), file('Box')]
+  const only = [file('Only')]
+  const r = resolved([row(1, {}, two), row(2, {}, only), row(3, { disabled: true, disabled_kind: 'no_label' }, [])])
+
+  it('uses the default saved PDF unless another one was chosen', () => {
+    expect(buildItems(r, [2, 1], {})).toEqual([{ line_id: 2, file_id: only[0].id }, { line_id: 1, file_id: two[0].id }])
+    expect(buildItems(r, [1], { 1: two[1].id })).toEqual([{ line_id: 1, file_id: two[1].id }])
   })
 
-  it('ticks and clears a whole group', () => {
-    const s = toggleGroup({}, lines)
-    expect(groupState(s, lines)).toBe('all')
-    expect(Object.keys(s)).toEqual(['lines:1', 'lines:2'])
-    expect(toggleGroup(s, lines)).toEqual({})
+  it('leaves out lines that cannot be printed or no longer exist', () => {
+    expect(buildItems(r, [3, 99, 1], {})).toEqual([{ line_id: 1, file_id: two[0].id }])
   })
+})
 
-  it('ticks a column across rows', () => {
-    const s = toggleColumn({}, lines.rows, 'a')
-    expect(columnState(s, lines.rows, 'a')).toBe('all')
-    expect(columnState(s, lines.rows, 'b')).toBe('none')
-    expect(toggleColumn(s, lines.rows, 'a')).toEqual({})
-  })
-
-  it('builds the request the backend expects', () => {
-    expect(toRequest({ 'lines:1': ['a', 'b'] })).toEqual({ items: [{ row: 'lines:1', keys: ['a', 'b'] }] })
-  })
-
-  it('saves a preset as rules and re-applies it to another SO', () => {
-    const s = { ...toggleCell({}, lines.rows[0], 'a'), ...toggleRow({}, header.rows[0]) }
-    const rules = toPresetRules(resolved, s)
-    expect(rules).toEqual([{ group: 'header', keys: ['h'], rows: 'all' }, { group: 'lines', keys: ['a'], rows: 'all' }])
-    const other: Resolved = { ...resolved, groups: [header, { ...lines, rows: [row('lines:9', ['a', 'b'])] }] }
-    expect(applyPreset(other, rules)).toEqual({ 'header:1': ['h'], 'lines:9': ['a'] })
-  })
-
-  it('drops vanished rows and keys when the same SO is refreshed', () => {
-    const next: Resolved = { ...resolved, groups: [header, { ...lines, rows: [row('lines:1', ['a'])] }] }
-    expect(pruneSelection(next, { 'lines:1': ['a', 'b'], 'lines:2': ['a'], 'gone:1': ['x'] })).toEqual({ 'lines:1': ['a'] })
+describe('refreshing the same order', () => {
+  it('drops vanished and no-longer-printable lines and stale PDF choices', () => {
+    const files = [file('Individual'), file('Box')]
+    const next = resolved([row(1, {}, files), row(2, { disabled: true, disabled_kind: 'no_label' }, [])])
+    expect(prune(next, [1, 2, 7], { 1: files[1].id, 2: 5, 7: 6 })).toEqual([[1], { 1: files[1].id }])
+    expect(prune(next, [1], { 1: 99999 })).toEqual([[1], {}])  // that PDF was deleted from the saved list
   })
 })

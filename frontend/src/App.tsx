@@ -1,13 +1,13 @@
 import { useEffect, useState } from 'react'
 import { ApiError, api } from './api'
 import History from './pages/History'
+import Labels from './pages/Labels'
 import Login from './pages/Login'
-import Templates from './pages/Templates'
 import Trace from './pages/Trace'
 import Users from './pages/Users'
 import type { Me } from './types'
 
-type Tab = 'trace' | 'templates' | 'history' | 'users'
+type Tab = 'trace' | 'labels' | 'history' | 'users'
 
 export default function App() {
   const [me, setMe] = useState<Me | null>(null)
@@ -43,16 +43,16 @@ export default function App() {
       <nav className="top">
         <strong>SO Sticker System</strong>
         <button className={tab === 'trace' ? 'on' : ''} onClick={() => setTab('trace')}>Trace &amp; print</button>
-        {admin && <button className={tab === 'templates' ? 'on' : ''} onClick={() => setTab('templates')}>Templates</button>}
+        <button className={tab === 'labels' ? 'on' : ''} onClick={() => setTab('labels')}>Label files</button>
         <button className={tab === 'history' ? 'on' : ''} onClick={() => setTab('history')}>Print history</button>
         {admin && <button className={tab === 'users' ? 'on' : ''} onClick={() => setTab('users')}>Roles</button>}
         <span className="spacer" />
-        <span className="who">{me.name} · <em>{me.role.replace('_', ' ')}</em></span>
+        <span className="who">{me.name} · <em>{admin ? 'admin' : me.role}</em></span>
         <button onClick={logout}>Sign out</button>
       </nav>
       <main>
         {tab === 'trace' && <Trace me={me} />}
-        {tab === 'templates' && admin && <Templates />}
+        {tab === 'labels' && <Labels me={me} />}
         {tab === 'history' && <History me={me} />}
         {tab === 'users' && admin && <Users />}
       </main>

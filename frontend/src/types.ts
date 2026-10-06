@@ -2,16 +2,25 @@ export type Role = 'viewer' | 'printer' | 'template_admin'
 
 export interface Me { uid: number; login: string; name: string; role: Role }
 
-export interface FieldVal { raw: unknown; display: string; type: string; uom: string | null }
+export interface FieldVal { label: string; raw: unknown; display: string; type: string; uom: string | null }
+
+/** A saved label PDF as offered for an order line. `id` is its saved record; the file is fetched by its saved location. */
+export interface LabelFile { id: number; name: string; folder: string; location_id: number }
+
+/** The label PDFs found for one order line's item code. */
+export interface LinePdf { code: string; files: LabelFile[]; selected: number | null }
 
 export interface Row {
   row_id: string
   label: string
-  scope: string
   line_id: number | null
   state: string
   fields: Record<string, FieldVal>
-  meta: Record<string, unknown>
+  /** greyed (ordered qty 0) or warning colour (no usable label PDF); either way it cannot be ticked or printed */
+  disabled: boolean
+  disabled_reason: string
+  disabled_kind: '' | 'no_qty' | 'no_label'
+  pdf?: LinePdf
 }
 
 export interface Group {
@@ -22,59 +31,26 @@ export interface Group {
   rows: Row[]
 }
 
-export interface Resolved { so: string; fetched_at: string; groups: Group[]; warnings: string[] }
+export interface Resolved { so: string; fetched_at: string; groups: Group[] }
 
-export interface CatalogEntry {
-  key: string; label: string; group: string; group_label: string; source_path: string
-  type: string; scope: string; selectable: boolean; aliases: string[]
-}
+export interface PrintItem { line_id: number; file_id: number | null }
 
-/** Selection basket: row id -> ticked catalog keys of that row. */
-export type Selection = Record<string, string[]>
-
-export interface PresetRule { group: string; keys: string[]; rows: 'all' }
-export interface Preset { id: number; name: string; owner_uid: number; shared: boolean; selection: { rules: PresetRule[] } }
-
-export interface Mapping { placeholder: string; catalog_key: string | null; overflow_rule: string; optional: boolean }
-export interface TemplateVersion {
-  id: number; version: number; created_at: string | null; uploaded_by: number | null; size: string
-  orientation: string; scope: string; default_calc_mode: number; original_filename: string
-  unresolved: string[]; mappings?: Mapping[]; findings?: string[]; placeholder_kinds?: Record<string, string[]>
-}
-export interface Template {
-  id: number; name: string; description: string; category: string; format: string; size: string
-  orientation: string; scope: string; default_calc_mode: number; active: boolean
-  active_version_id: number | null; active_version: number | null; latest_version: number | null
-  unresolved: string[]; versions?: TemplateVersion[]
-}
-
-export interface Warning { code: string; message: string; field?: string; placeholder?: string; label?: string }
-export interface CalcOut {
-  calculated: Record<string, number | null>; overrides: Record<string, number>
-  final: Record<string, number | null>; warnings: Warning[]; mode: number; uom: string
-}
-export interface LabelSummary { key: string; title: string; calc: CalcOut }
-export interface Preview {
-  format: 'pdf' | 'zpl'; pdf_base64?: string; text?: string; warnings: Warning[]; render_warnings: string[]
-  labels: LabelSummary[]; info: { sheets?: number; slots_per_sheet?: number; empty_slots?: number }
-  label_count: number; template: { id: number; name: string; version: number; version_id: number; scope: string }
-}
-
+export interface JobItem { line_id: number; code: string; name: string; file_id: number; path: string; sha256: string | null; size: number }
 export interface Job {
-  id: number; so_name: string; template: string; template_id: number; template_version: number; copies: number
-  layout: Record<string, unknown>; printer: string; user_uid: number; format: string; created_at: string | null
-  overrides: Record<string, Record<string, unknown>>; calculated: Record<string, CalcOut>
-  options: Record<string, unknown>
+  id: number; so_name: string; user_uid: number; copies: number; printer: string; reprint_of: number | null
+  created_at: string | null; items: JobItem[]
 }
 
-export interface PrintOptions {
-  calc_mode: number
-  override_base: number
-  logo: boolean
-  pefc: boolean
-  copies: number
-  layout: { kind: string; sheet: string; orientation: string; crop_marks: boolean; margin_mm: number; gap_mm: number; start_slot: number }
-  printer: string
-  /** label key -> {pcs,kgs,cbm} typed by the user (strings, as typed) */
-  overrides: Record<string, Record<string, string>>
+/** A folder that was added by URL. */
+export interface LocationInfo {
+  id: number; url: string; folder: string; reachable: boolean; files: number; missing: number
+  last_fetched_at: string | null; last_checked_at: string | null
 }
+export interface LabelStatus { locations: LocationInfo[]; files: number; missing: number; codes: number }
+
+/** One saved file in the Label files list. status "missing" = renamed, moved or deleted since it was saved. */
+export interface LabelRow {
+  id: number; name: string; folder: string; url: string | null; location_id: number; location: string
+  status: 'ok' | 'missing'; size: number; last_checked: string | null
+}
+export interface LabelSearch { total: number; page: number; size: number; items: LabelRow[] }

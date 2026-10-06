@@ -1,10 +1,8 @@
 """Application settings. Everything environment-specific comes from env vars, nothing is hard-coded."""
 from __future__ import annotations
 
-import json
 from functools import lru_cache
 
-from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -33,29 +31,29 @@ class Settings(BaseSettings):
     default_role: str = "printer"
 
     # Resolver
-    bom_depth: int = 2
     cache_ttl_seconds: int = 120
-    # Odoo stores weight/volume in the units configured under Inventory settings; multiply to get kg / m3. [VERIFY]
-    weight_factor_to_kg: float = 1.0
-    volume_factor_to_m3: float = 1.0
 
-    # Labels
-    default_label_size: str = "A6"
-    max_upload_mb: int = 15
-    render_timeout_seconds: int = 20
-    printers: dict[str, str] = {}
-
-    @field_validator("printers", mode="before")
-    @classmethod
-    def _parse_printers(cls, v):
-        if isinstance(v, str):
-            v = v.strip()
-            return json.loads(v) if v else {}
-        return v or {}
+    # Label PDFs. Folders to read are added on the "Label files" tab as a URL. A URL can only point inside what is
+    # mounted into the container:
+    #   LABEL_MOUNT_DIR  where the network share (or a local folder) is mounted in the container
+    #   LABEL_SHARE      the network share that is mounted there, e.g. //172.16.0.4/Marketing  (so that
+    #                    file://172.16.0.4/Marketing/00%20MASTERLIST/... maps to LABEL_MOUNT_DIR/00 MASTERLIST/...)
+    label_mount_dir: str = "/labels"
+    label_share: str = ""
+    # Optional: a folder added automatically (once) when no folder has been added yet. Any form of URL / path works.
+    label_default_location: str = ""
+    # When one item code has several PDFs, folders containing the first matching word here are preferred as the
+    # default. Comma separated, case-insensitive, e.g. "Box Stickers,Individual".
+    label_folder_priority: str = ""
+    label_max_mb: int = 150  # larger PDFs can be viewed or printed alone but are not merged or kept in the snapshot
 
     @property
     def admin_logins(self) -> set[str]:
         return {x.strip().lower() for x in self.initial_admin_logins.split(",") if x.strip()}
+
+    @property
+    def folder_priority(self) -> list[str]:
+        return [x.strip().lower() for x in self.label_folder_priority.split(",") if x.strip()]
 
 
 @lru_cache
