@@ -17,10 +17,11 @@ from urllib.parse import quote, unquote, urlparse
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
-from ..config import Settings
+from ..config import Settings, get_settings
 from ..db import get_engine
 from ..models import LabelFile, LabelLocation, utcnow
 from .index import code_of, get_index
+from . import share
 from .kinds import is_label_file
 
 
@@ -63,9 +64,18 @@ def resolve_url(url: str, settings: Settings) -> Path:
         resolved.relative_to(mount.resolve())
     except (ValueError, OSError):
         raise LocationError(f"The folder must be inside the connected location ({mount}).")
-    if not resolved.is_dir():
+    if not _is_dir(resolved, settings):
         raise LocationError(f"That folder cannot be found or read: {resolved}")
     return resolved
+
+
+def _is_dir(path: Path, settings: Settings) -> bool:
+    if share.enabled(settings):
+        try:
+            return share.is_dir(settings, path)
+        except share.ShareDown as e:
+            raise LocationError(str(e))
+    return path.is_dir()
 
 
 def to_url(folder: Path, settings: Settings) -> str:
@@ -120,9 +130,33 @@ def backfill_urls(db: Session, settings: Settings) -> int:
 
 def _require_reachable(loc: LabelLocation) -> Path:
     root = Path(loc.folder)
-    if not root.is_dir():
+    if not _is_dir(root, get_settings()):
         raise LocationError(f"The folder cannot be reached right now ({loc.folder}); nothing was changed.")
     return root
+
+
+def _walk(root: Path, settings: Settings):
+    """(sub-folder, file name, size) of every PDF / image below `root`, in all sub-folders however deep."""
+    if share.enabled(settings):
+        try:
+            items = share.listing(settings, root)
+        except share.ShareDown as e:
+            raise LocationError(str(e))
+        for rel, size in items:
+            d, _, fn = rel.rpartition("/")
+            if is_label_file(fn):
+                yield d, fn, size
+        return
+    for dirpath, _dirs, files in os.walk(root, onerror=lambda e: None):
+        rel_dir = Path(dirpath).relative_to(root).as_posix()
+        rel_dir = "" if rel_dir == "." else rel_dir
+        for fn in files:
+            if is_label_file(fn):
+                try:
+                    size = os.stat(os.path.join(dirpath, fn)).st_size
+                except OSError:
+                    size = 0
+                yield rel_dir, fn, size
 
 
 def fetch(db: Session, loc: LabelLocation, settings: Settings) -> dict:
@@ -133,31 +167,22 @@ def fetch(db: Session, loc: LabelLocation, settings: Settings) -> dict:
     existing = {f.rel_path: f for f in db.query(LabelFile).filter(LabelFile.location_id == loc.id)}
     seen: set[str] = set()
     added = restored = 0
-    for dirpath, _dirs, files in os.walk(root, onerror=lambda e: None):
-        rel_dir = Path(dirpath).relative_to(root).as_posix()
-        rel_dir = "" if rel_dir == "." else rel_dir
-        for fn in files:
-            if not is_label_file(fn):
-                continue
-            rel = f"{rel_dir}/{fn}" if rel_dir else fn
-            seen.add(rel)
-            try:
-                size = os.stat(os.path.join(dirpath, fn)).st_size
-            except OSError:
-                size = 0
-            rec = existing.get(rel)
-            if rec is None:
-                code, exact = code_of(fn)
-                db.add(LabelFile(location_id=loc.id, rel_path=rel, url=file_url(loc.folder, rel, settings), name=fn,
-                                 folder=rel_dir, code_key=code, exact=exact, size=size, status="ok", first_seen=now,
-                                 last_seen=now, last_checked=now))
-                added += 1
-            else:
-                if rec.status != "ok":
-                    restored += 1
-                rec.status, rec.size, rec.last_seen, rec.last_checked = "ok", size, now, now
-                if not rec.url:
-                    rec.url = file_url(loc.folder, rel, settings)
+    for rel_dir, fn, size in _walk(root, settings):
+        rel = f"{rel_dir}/{fn}" if rel_dir else fn
+        seen.add(rel)
+        rec = existing.get(rel)
+        if rec is None:
+            code, exact = code_of(fn)
+            db.add(LabelFile(location_id=loc.id, rel_path=rel, url=file_url(loc.folder, rel, settings), name=fn,
+                             folder=rel_dir, code_key=code, exact=exact, size=size, status="ok", first_seen=now,
+                             last_seen=now, last_checked=now))
+            added += 1
+        else:
+            if rec.status != "ok":
+                restored += 1
+            rec.status, rec.size, rec.last_seen, rec.last_checked = "ok", size, now, now
+            if not rec.url:
+                rec.url = file_url(loc.folder, rel, settings)
     gone = 0
     for rel, rec in existing.items():
         if rel not in seen:
@@ -175,8 +200,10 @@ def check(db: Session, loc: LabelLocation) -> dict:
     root = _require_reachable(loc)
     now = utcnow()
     ok = missing = changed = 0
+    settings = get_settings()
+    on_share = {f"{d}/{n}" if d else n for d, n, _ in _walk(root, settings)} if share.enabled(settings) else None
     for rec in db.query(LabelFile).filter(LabelFile.location_id == loc.id):
-        present = (root / rec.rel_path).is_file()
+        present = rec.rel_path in on_share if on_share is not None else (root / rec.rel_path).is_file()
         new = "ok" if present else "missing"
         if new != rec.status:
             changed += 1
@@ -264,10 +291,17 @@ def get_index_invalidate() -> None:
         _index.invalidate()
 
 
+def _reachable(loc: LabelLocation) -> bool:
+    try:
+        return _is_dir(Path(loc.folder), get_settings())
+    except LocationError:
+        return False
+
+
 def location_json(db: Session, loc: LabelLocation) -> dict:
     counts = dict(db.query(LabelFile.status, func.count()).filter(LabelFile.location_id == loc.id)
                   .group_by(LabelFile.status).all())
     iso = lambda d: d.isoformat() if d else None  # noqa: E731
-    return {"id": loc.id, "url": loc.url, "folder": loc.folder, "reachable": Path(loc.folder).is_dir(),
+    return {"id": loc.id, "url": loc.url, "folder": loc.folder, "reachable": _reachable(loc),
             "files": counts.get("ok", 0) + counts.get("missing", 0), "missing": counts.get("missing", 0),
             "last_fetched_at": iso(loc.last_fetched_at), "last_checked_at": iso(loc.last_checked_at)}

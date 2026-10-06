@@ -24,7 +24,7 @@ def test_item_code_of_a_file_name(name, expect):
 @pytest.fixture
 def settings(tmp_path):
     (tmp_path / PRINT_DIR / "01 SAWO").mkdir(parents=True)
-    return Settings(label_mount_dir=str(tmp_path), label_share=SHARE)
+    return Settings(label_mount_dir=str(tmp_path), label_share=SHARE, share_bridge_url="")
 
 
 def test_the_file_url_from_the_explorer_maps_to_the_mounted_folder(settings, tmp_path):
@@ -62,7 +62,7 @@ def test_bad_locations_are_refused_with_a_clear_message(settings, url, message):
 
 def test_no_connected_share_gives_a_setup_hint(tmp_path):
     with pytest.raises(LocationError, match="No network share is connected"):
-        resolve_url("file://172.16.0.4/Marketing/x", Settings(label_mount_dir=str(tmp_path), label_share=""))
+        resolve_url("file://172.16.0.4/Marketing/x", Settings(label_mount_dir=str(tmp_path), label_share="", share_bridge_url=""))
 
 
 def test_a_friendly_address_is_built_for_the_default_folder(settings, tmp_path):

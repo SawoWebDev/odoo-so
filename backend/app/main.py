@@ -12,6 +12,7 @@ from .config import get_settings
 from .db import Base, SessionLocal, get_engine
 from .deps import csrf_guard
 from .labels import store
+from .labels.share import ShareDown
 from .labels.router import router as labels_router
 from .printing import router as print_router
 from .so_router import router as so_router
@@ -51,6 +52,11 @@ async def validation_handler(request: Request, exc: RequestValidationError):
     # Default FastAPI echoes the submitted value in each error: strip it so a password can never leak.
     errors = [{"loc": e.get("loc"), "msg": e.get("msg"), "type": e.get("type")} for e in exc.errors()]
     return JSONResponse(status_code=422, content={"detail": errors})
+
+
+@app.exception_handler(ShareDown)
+async def share_down_handler(request: Request, exc: ShareDown):
+    return JSONResponse(status_code=503, content={"detail": str(exc)})
 
 
 @app.middleware("http")

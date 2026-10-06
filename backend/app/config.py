@@ -40,6 +40,10 @@ class Settings(BaseSettings):
     #                    file://172.16.0.4/Marketing/00%20MASTERLIST/... maps to LABEL_MOUNT_DIR/00 MASTERLIST/...)
     label_mount_dir: str = "/labels"
     label_share: str = ""
+    # Address of the share bridge (backend/scripts/share_bridge.py) running on the Windows PC. When set, the folders
+    # are read through it with the PC's own access to the share: no mounted folder and no share password.
+    # Docker Desktop: http://host.docker.internal:8765
+    share_bridge_url: str = ""
     # Optional: a folder added automatically (once) when no folder has been added yet. Any form of URL / path works.
     label_default_location: str = ""
     # When one item code has several PDFs, folders containing the first matching word here are preferred as the

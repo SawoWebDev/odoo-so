@@ -57,7 +57,17 @@ name and location in its database**. From then on:
 * Red rows have a **🗑 delete icon**: it removes only the saved *record* of a file that is already gone. Files that still exist
   cannot be deleted, and nothing on the share is ever touched. **Remove** forgets a whole folder's saved list.
 
-### Connecting the network share
+### Connecting the network share - easiest way (no password)
+
+On the Windows PC that runs Docker, double-click **`start-share-bridge.bat`** and keep its window open. It reads the
+share with the access Windows already has (the same way Explorer or the browser does), listens only on this PC and is
+read-only. In `.env` set `SHARE_BRIDGE_URL=http://host.docker.internal:8765` (and `LABEL_SHARE=//172.16.0.4/Marketing`),
+then `docker compose up -d`. On the **Label files** tab, **Read folder** now lists every PDF and image in every
+sub-folder and saves its name and `file://` location. Nothing is copied; a file is only fetched when it is previewed or
+printed. If the helper is not running, the app says so and never marks files as missing.
+
+### Connecting the network share - with a Windows login instead
+
 
 The URL only works for the share that Docker has connected. Docker mounts `\\172.16.0.4\Marketing` itself, so give it a Windows
 account that can read it (the share refuses anonymous access). Put in `.env` (the file is git-ignored):
@@ -99,6 +109,7 @@ sample order and writes `docs/VERIFY_REPORT.md`.
 | `LABEL_MOUNT_DIR` | `/labels` | Where the share (or local folder) is mounted inside the container. Folder URLs must point below it. |
 | `LABEL_SHARE` | – | The network share that is mounted there, e.g. `//172.16.0.4/Marketing`; this is how a `file://` URL is mapped to the mount. |
 | `LABEL_LOCAL_DIR` | `./labels` | Host folder mounted read-only as `/labels` (local mode). |
+| `SHARE_BRIDGE_URL` | – | Address of the share bridge on this PC (`http://host.docker.internal:8765`). When set, folders are read through it and no share login is needed. |
 | `LABEL_SHARE_USER`, `LABEL_SHARE_PASSWORD`, `LABEL_SHARE_DOMAIN` | – | Windows login for the share (network mode, see above). |
 | `LABEL_DEFAULT_LOCATION` | empty | A folder URL added automatically once, when none has been added yet. |
 | `LABEL_FOLDER_PRIORITY` | empty | Default among several PDFs for one item code: first word that appears in a folder path wins, e.g. `Box Stickers,Individual`. |
@@ -131,7 +142,7 @@ everyone's history.
 
 ```bash
 docker compose build backend
-docker compose run --rm backend python -m pytest -q        # 192 tests, a few seconds
+docker compose run --rm backend python -m pytest -q        # 196 tests, a few seconds
 (cd frontend && npm install && npm test)                    # selection and paging logic (vitest)
 ```
 

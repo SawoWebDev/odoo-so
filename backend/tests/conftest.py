@@ -57,6 +57,7 @@ def env(tmp_path, monkeypatch):
     monkeypatch.setenv("STORAGE_DIR", str(tmp_path / "storage"))
     monkeypatch.setenv("LABEL_MOUNT_DIR", str(tmp_path / "mnt"))
     monkeypatch.setenv("LABEL_SHARE", SHARE)
+    monkeypatch.setenv("SHARE_BRIDGE_URL", "")  # tests read a mounted folder unless they start their own bridge
     monkeypatch.setenv("LABEL_DEFAULT_LOCATION", PRINT_URL)
     get_settings.cache_clear()
     reset_engine()

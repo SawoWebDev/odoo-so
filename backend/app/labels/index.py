@@ -108,6 +108,12 @@ class LabelIndex:
         e = self.get(file_id)
         if e is None:
             return None
+        from ..config import get_settings
+        from . import share
+
+        settings = get_settings()
+        if share.enabled(settings):  # raises ShareDown when the helper is off: that is not "the file is gone"
+            return share.local(settings, e.root, e.rel_path)
         root = Path(e.root).resolve()
         p = (root / e.rel_path).resolve()
         try:
