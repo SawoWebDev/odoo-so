@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 80" width="120" height="80">
+  <!-- Stand-in artwork. Replace with the official PEFC mark by uploading a new template version. -->
+  <rect x="1" y="1" width="118" height="78" rx="6" fill="#ffffff" stroke="#1b6b3a" stroke-width="2"/>
+  <polygon points="22,40 34,16 46,40 40,40 48,56 20,56 28,40" fill="#1b6b3a"/>
+  <rect x="31" y="56" width="6" height="8" fill="#1b6b3a"/>
+  <text x="56" y="36" font-family="Liberation Sans, Arial, DejaVu Sans, sans-serif" font-weight="bold" font-size="22"
+        fill="#1b6b3a">PEFC</text>
+  <text x="8" y="74" font-family="Liberation Sans, Arial, DejaVu Sans, sans-serif" font-size="11" fill="#1b6b3a">PEFC/01-31-1332</text>
+</svg>

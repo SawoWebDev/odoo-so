@@ -1,0 +1,65 @@
+# One command: docker compose up --build
+# UI:  http://localhost:8080   (API is proxied at /api)
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: sticker
+      POSTGRES_USER: sticker
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-sticker_dev_pw}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sticker -d sticker"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  redis:
+    image: redis:7-alpine
+    # Sessions hold encrypted credentials: keep them in memory only, never on disk.
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  backend:
+    build: ./backend
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql+psycopg://sticker:${POSTGRES_PASSWORD:-sticker_dev_pw}@db:5432/sticker
+      REDIS_URL: redis://redis:6379/0
+      STORAGE_DIR: /data/storage
+    volumes:
+      - storage:/data/storage
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request;urllib.request.urlopen('http://localhost:8000/api/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+
+  # Demo only: `docker compose --profile demo up` starts a fake read-only Odoo so you can try the app without a
+  # real instance. Logins alice/pw-alice (template admin), bob/pw-bob, carol/pw-carol; orders S00123 and S00124.
+  mock-odoo:
+    profiles: ["demo"]
+    build: ./backend
+    command: ["python", "-m", "scripts.mock_odoo", "--port", "8069"]
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "${HTTP_PORT:-8080}:80"
+    depends_on:
+      - backend
+
+volumes:
+  pgdata:
+  storage:

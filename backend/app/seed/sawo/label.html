@@ -1,0 +1,65 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>SAWO product label A6</title>
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    width: 105mm; height: 148mm; position: relative; overflow: hidden;
+    font-family: "DejaVu Sans", "Liberation Sans", Arial, sans-serif; color: #000; background: #fff;
+  }
+  .label { position: absolute; left: 0; top: 0; width: 105mm; height: 148mm; padding: 5mm 6mm; border: 0.3mm solid #000; }
+  .top { height: 16mm; position: relative; }
+  .logo { position: absolute; left: 0; top: 0; height: 14mm; }
+  .pefc { position: absolute; right: 0; top: 0; height: 15mm; }
+  .photo { height: 40mm; margin: 1mm 0 2mm; text-align: center; display: flex; align-items: center; justify-content: center; }
+  .photo img { max-width: 100%; max-height: 40mm; object-fit: contain; }
+  .row { display: flex; align-items: baseline; margin-top: 1mm; }
+  .k { font-size: 7.5pt; letter-spacing: .4pt; width: 24mm; flex: none; text-transform: uppercase; }
+  .v { font-size: 13pt; font-weight: bold; flex: 1; }
+  .desc { font-size: 11pt; font-weight: bold; line-height: 1.15; height: 14mm; max-height: 14mm; overflow: hidden; margin-top: 1mm; }
+  .barcode { height: 20mm; margin-top: 2mm; text-align: center; }
+  .barcode svg { width: 100%; height: 100%; }
+  .so { font-size: 12pt; margin-top: 2mm; }
+  .so .v { font-size: 14pt; }
+  table.qty { width: 100%; border-collapse: collapse; margin-top: 2.5mm; }
+  table.qty td { border: 0.3mm solid #000; text-align: center; padding: 1mm 1mm; width: 33.33%; }
+  table.qty .h { font-size: 7.5pt; letter-spacing: .5pt; }
+  table.qty .n { font-size: 14pt; font-weight: bold; height: 8mm; vertical-align: middle; }
+  .logoyn { margin-top: 3mm; font-size: 9pt; font-weight: bold; display: flex; align-items: center; gap: 2mm; }
+  .box { display: inline-block; width: 4.2mm; height: 4.2mm; border: 0.4mm solid #000; position: relative; vertical-align: middle; }
+  .box.on::after { content: ""; position: absolute; left: .8mm; top: .8mm; right: .8mm; bottom: .8mm; background: #000; }
+  .opt { margin-left: 2mm; }
+</style>
+</head>
+<body>
+<div class="label">
+  <div class="top">
+    <img class="logo" src="assets/sawo_logo.svg" alt="">
+    {{#if pefc}}<img class="pefc" src="assets/pefc.svg" alt="">{{/if}}
+  </div>
+
+  <div class="photo">{{image:photo|optional}}</div>
+
+  <div class="row"><span class="k">Item code</span><span class="v">{{item_code}}</span></div>
+  <div class="desc">{{description|shrink|max=60}}</div>
+
+  <div class="barcode">{{barcode:barcode}}</div>
+
+  <div class="row so"><span class="k">SO number</span><span class="v">{{so_number}}</span></div>
+
+  <table class="qty">
+    <tr><td class="h">PCS</td><td class="h">KGS</td><td class="h">CBM</td></tr>
+    <tr><td class="n">{{pcs}}</td><td class="n">{{kgs}}</td><td class="n">{{cbm}}</td></tr>
+  </table>
+
+  <div class="logoyn">
+    <span>LOGO</span>
+    {{#if logo_yes}}<span class="box on"></span><span>YES</span><span class="box opt"></span><span>NO</span>
+    {{else}}<span class="box"></span><span>YES</span><span class="box on opt"></span><span>NO</span>{{/if}}
+  </div>
+</div>
+</body>
+</html>
