@@ -190,3 +190,6 @@ button.reqnum:hover:not(:disabled) { color: #1e40af; }
 button.reqnum.zero:hover:not(:disabled) { color: #475569; }
 
 span.reqnum.zero { display: inline-block; padding: 2px 8px; font-size: 14px; font-weight: 600; line-height: 1.2; color: #94a3b8; cursor: default; }
+
+/* No. Of Req.: the number and its header sit against the right edge of the column */
+th.reqnumhead, td.reqnumtd { text-align: right; padding-right: 16px; }
