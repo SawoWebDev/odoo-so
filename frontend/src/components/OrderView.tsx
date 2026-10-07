@@ -257,7 +257,6 @@ export default function OrderView({ resolved, onChanged, picked, setPicked, choi
               <span className="linesearch">
                 <input type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search item code or product name"
                   aria-label="Search order lines" onKeyDown={(e) => { if (e.key === 'Escape') setQ('') }} />
-                {q && <button className="link" onClick={() => setQ('')} title="Clear the search">Clear</button>}
               </span>
             )}
           </header>
