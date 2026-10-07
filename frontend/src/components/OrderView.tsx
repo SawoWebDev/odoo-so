@@ -195,7 +195,7 @@ function LinesTable({ group, so, onChanged, picked, setPicked, choice, setChoice
               {COLUMNS.map((k) => <th key={k}>{head?.[k]?.label ?? k}</th>)}
               <th>Label file</th>
               <th className="reqhead">Request</th>
-              <th className="reqhead reqnumhead" title="Open requests for the item code. Click a number to read them.">No. of Request</th>
+              <th className="reqhead reqnumhead" title="Open requests for the item code. Click a number to read them.">No. Of Req.</th>
             </tr>
           </thead>
           <tbody>
