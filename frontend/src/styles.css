@@ -179,3 +179,12 @@ button.reqnum.zero:hover { background: #e2e8f0; color: #475569; }
 .pdfname { display: block; max-width: 40ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .nopdf { white-space: nowrap; }
 th.reqhead { white-space: nowrap; }
+
+/* No. Of Req.: just the number, centred, in its colour (blue = open requests, grey = none); no circle or background */
+th.reqnumhead, td.reqnumtd { text-align: center; }
+button.reqnum, button.reqnum.zero { background: none; border: 0; border-radius: 0; min-width: 0; height: auto; padding: 2px 8px; font-size: 14px; font-weight: 700; line-height: 1.2; }
+button.reqnum { color: #1d4ed8; }
+button.reqnum.zero { color: #94a3b8; font-weight: 600; }
+button.reqnum:hover:not(:disabled), button.reqnum.zero:hover:not(:disabled) { background: none; text-decoration: underline; }
+button.reqnum:hover:not(:disabled) { color: #1e40af; }
+button.reqnum.zero:hover:not(:disabled) { color: #475569; }
