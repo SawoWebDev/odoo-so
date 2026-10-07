@@ -211,7 +211,7 @@ function LinesTable({ group, so, onChanged, picked, setPicked, choice, setChoice
                   {COLUMNS.map((k) => {
                     const f = r.fields[k]
                     return (
-                      <td key={k} className={f?.type === 'number' ? 'num' : ''}>
+                      <td key={k} className={f?.type === 'number' ? 'num' : k === 'line.product.name' ? 'trunc' : ''} title={k === 'line.product.name' ? f?.display : undefined}>
                         {f?.display || <em>—</em>}
                         {f?.uom && f.display && f.type === 'number' && <small> {f.uom}</small>}
                       </td>

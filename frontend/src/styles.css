@@ -171,3 +171,11 @@ button.reqnum.zero:hover { background: #e2e8f0; color: #475569; }
 
 .reqopt { display: flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer; }
 .reqopt input { width: auto; margin: 0; }
+
+/* Long text is cut at a fixed length with "..." and shown in full as a tip on hover, so the last columns always fit */
+.grid td.trunc { max-width: 34ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pdfcell { max-width: 40ch; }
+.pdfcell select { width: 100%; max-width: 40ch; }
+.pdfname { display: block; max-width: 40ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nopdf { white-space: nowrap; }
+th.reqhead { white-space: nowrap; }
