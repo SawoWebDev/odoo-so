@@ -79,7 +79,7 @@ def test_the_setup_is_saved_without_ever_sending_the_password_back(api):
 
 @pytest.mark.parametrize("change,message", [
     ({"host": ""}, "SMTP server"), ({"sender_email": ""}, "sender"), ({"receivers": ""}, "at least one receiver"),
-    ({"receivers": "not-an-email"}, "not a valid email"), ({"port": 70000}, "port"), ({"security": "weird"}, "secured"),
+    ({"receivers": "not-an-email"}, "not a valid email"), ({"port": 993}, "for receiving mail"), ({"port": 70000}, "port"), ({"security": "weird"}, "secured"),
 ])
 def test_a_bad_setup_is_refused_with_a_clear_message(api, change, message):
     login(api, "alice")

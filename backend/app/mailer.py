@@ -75,6 +75,10 @@ def validate(cfg: dict) -> str | None:
         return "Choose how the connection is secured (STARTTLS, SSL or none)."
     if not (isinstance(cfg["port"], int) and 1 <= cfg["port"] <= 65535):
         return "The port must be a number between 1 and 65535."
+    incoming = {993: "IMAP over SSL", 143: "IMAP", 995: "POP3 over SSL", 110: "POP3"}
+    if cfg["port"] in incoming:
+        return (f"Port {cfg['port']} is for receiving mail ({incoming[cfg['port']]}), not for sending. "
+                "Use 465 (SSL / TLS) or 587 (STARTTLS).")
     for r in cfg["receivers"]:
         if not EMAIL_RE.match(r):
             return f"'{r}' is not a valid email address."
