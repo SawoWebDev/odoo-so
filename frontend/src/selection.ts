@@ -36,3 +36,13 @@ export function buildItems(resolved: Resolved, picked: Picked, choice: Choice): 
     .filter((id) => rows.has(id) && canTick(rows.get(id) as Row))
     .map((id) => ({ line_id: id, file_id: choice[id] ?? rows.get(id)?.pdf?.selected ?? null }))
 }
+
+/** The lines whose item code or product name contain every word typed (any case). Empty search = all lines. */
+export function filterRows(rows: Row[], query: string): Row[] {
+  const words = query.toLowerCase().split(/\s+/).filter(Boolean)
+  if (!words.length) return rows
+  return rows.filter((r) => {
+    const hay = `${r.fields['line.product.code']?.display ?? ''} ${r.fields['line.product.name']?.display ?? ''}`.toLowerCase()
+    return words.every((w) => hay.includes(w))
+  })
+}

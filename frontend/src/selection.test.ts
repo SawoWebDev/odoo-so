@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { buildItems, canTick, prune, toggle } from './selection'
+import { buildItems, canTick, filterRows, prune, toggle } from './selection'
 import type { LabelFile, Resolved, Row } from './types'
 
 let nextId = 100
@@ -52,5 +52,19 @@ describe('refreshing the same order', () => {
     const next = resolved([row(1, {}, files), row(2, { disabled: true, disabled_kind: 'no_label' }, [])])
     expect(prune(next, [1, 2, 7], { 1: files[1].id, 2: 5, 7: 6 })).toEqual([[1], { 1: files[1].id }])
     expect(prune(next, [1], { 1: 99999 })).toEqual([[1], {}])  // that PDF was deleted from the saved list
+  })
+})
+
+describe('filterRows', () => {
+  const mk = (id: number, code: string, name: string) =>
+    row(id, { fields: { 'line.product.code': { label: '', raw: code, display: code, type: 'text', uom: null }, 'line.product.name': { label: '', raw: name, display: name, type: 'text', uom: null } } })
+  const rows = [mk(1, 'SET-TRAD-D', 'Accessory Set Traditional, Cedar'), mk(2, '923-H', 'Wooden Curve Light 240mm, Hemlock'), mk(3, '550-D', 'Wooden Sandtimer Tag, Cedar')]
+  it('returns everything for an empty search', () => { expect(filterRows(rows, '  ')).toHaveLength(3) })
+  it('finds by item code, in any case', () => { expect(filterRows(rows, 'set-trad').map((r) => r.line_id)).toEqual([1]) })
+  it('finds by product name', () => { expect(filterRows(rows, 'hemlock').map((r) => r.line_id)).toEqual([2]) })
+  it('needs every word, in code and/or name', () => {
+    expect(filterRows(rows, 'wooden cedar').map((r) => r.line_id)).toEqual([3])
+    expect(filterRows(rows, '923 curve').map((r) => r.line_id)).toEqual([2])
+    expect(filterRows(rows, 'nothing here')).toEqual([])
   })
 })

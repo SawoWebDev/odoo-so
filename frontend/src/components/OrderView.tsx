@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { ApiError, api } from '../api'
 import { PAGE_SIZES, type PageInfo, loadPageSize, pageInfo, savePageSize } from '../paging'
-import { type Choice, type Picked, canTick, toggle } from '../selection'
+import { type Choice, type Picked, canTick, filterRows, toggle } from '../selection'
 import { KIND_LABEL, type Group, type Resolved, type Row } from '../types'
 
 const COLUMNS = ['line.product.code', 'line.product.name', 'line.qty']
@@ -242,6 +242,7 @@ export default function OrderView({ resolved, onChanged, picked, setPicked, choi
   const [active, setActive] = useState<string | null>(null)
   const chosen = hasRefs ? refs.rows.find((r) => r.row_id === active) ?? null : null
   const pick = (id: string) => { if (id !== active) { setActive(id); setPicked([]) } }  // another reference = another set of lines
+  const [q, setQ] = useState('')  // search the order lines by item code and/or product name
   const visible = (g: Group): Group => (chosen ? { ...g, rows: g.rows.filter((r) => chosen.line_ids?.includes(r.line_id as number)) } : g)
   return (
     <div className="results">
@@ -249,9 +250,16 @@ export default function OrderView({ resolved, onChanged, picked, setPicked, choi
         <section key={g.id} className={`group st-${g.status}`}>
           <header>
             <span className="title">{g.label}</span>
-            {g.id === 'lines' && g.rows.length > 0 && (!hasRefs || chosen) && <span className="count">{visible(g).rows.length}</span>}
+            {g.id === 'lines' && g.rows.length > 0 && (!hasRefs || chosen) && <span className="count">{q.trim() ? `${filterRows(visible(g).rows, q).length} of ${visible(g).rows.length}` : visible(g).rows.length}</span>}
             {g.id === 'lines' && chosen && <span className="muted small">in {chosen.label}</span>}
             {g.status !== 'ok' && <span className={`badge status-${g.status}`} title={g.message}>{g.status.replace('_', ' ')}</span>}
+            {g.id === 'lines' && g.rows.length > 0 && (!hasRefs || chosen) && (
+              <span className="linesearch">
+                <input type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search item code or product name"
+                  aria-label="Search order lines" onKeyDown={(e) => { if (e.key === 'Escape') setQ('') }} />
+                {q && <button className="link" onClick={() => setQ('')} title="Clear the search">Clear</button>}
+              </span>
+            )}
           </header>
           {g.rows.length === 0 && <p className="muted pad">{g.message || 'Nothing recorded for this order.'}</p>}
           {g.rows.length > 0 && g.id === 'header' && <HeaderCard row={g.rows[0]} refs={hasRefs ? refs.rows : []} active={chosen?.row_id ?? null} onPick={pick} />}
@@ -261,7 +269,9 @@ export default function OrderView({ resolved, onChanged, picked, setPicked, choi
           {g.rows.length > 0 && g.id === 'lines' && (!hasRefs || chosen) && (
             visible(g).rows.length === 0
               ? <p className="muted pad">No order line with an item code is moved by {chosen?.label}.</p>
-              : <LinesTable key={chosen?.row_id ?? 'all'} so={resolved.so} onChanged={onChanged} group={visible(g)} picked={picked} setPicked={setPicked} choice={choice} setChoice={setChoice} />
+              : filterRows(visible(g).rows, q).length === 0
+                ? <p className="muted pad">No order line matches &ldquo;{q.trim()}&rdquo;. <button className="link" onClick={() => setQ('')}>Clear the search</button></p>
+                : <LinesTable key={`${chosen?.row_id ?? 'all'}|${q.trim()}`} so={resolved.so} onChanged={onChanged} group={{ ...visible(g), rows: filterRows(visible(g).rows, q) }} picked={picked} setPicked={setPicked} choice={choice} setChoice={setChoice} />
           )}
         </section>
       ))}
