@@ -197,3 +197,7 @@ th.reqnumhead, td.reqnumtd { text-align: right; padding-right: 16px; }
 /* search box on the right of the Order lines bar */
 .linesearch { margin-left: auto; display: inline-flex; align-items: center; gap: 8px; }
 .linesearch input { width: 280px; max-width: 100%; padding: 5px 10px; font-size: 13px; }
+
+/* beats "table.grid td { text-align: left }": the No. Of Req. numbers and their header sit against the right edge */
+table.grid th.reqnumhead, table.grid td.reqnumtd { text-align: right; padding-right: 18px; }
+table.grid th.reqhead:not(.reqnumhead), table.grid td.reqtd:not(.reqnumtd) { text-align: center; }
