@@ -97,10 +97,11 @@ function RequestsCell({ row, so, onChanged }: { row: Row; so: string; onChanged:
   const [note, setNote] = useState('')
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
-  const anchor = useRef<HTMLSpanElement>(null)
+  const anchor = useRef<HTMLElement | null>(null)
   const pop = useRef<HTMLDivElement>(null)
 
-  const toggleOpen = () => {
+  const toggleOpen = (e: React.MouseEvent<HTMLElement>) => {
+    anchor.current = e.currentTarget
     if (!open && anchor.current) {
       const r = anchor.current.getBoundingClientRect()
       const right = Math.max(8, window.innerWidth - r.right)
@@ -132,11 +133,13 @@ function RequestsCell({ row, so, onChanged }: { row: Row; so: string; onChanged:
   }
 
   return (
-    <span className="reqcol" ref={anchor}>
-      {list.length > 0 && (
-        <button className="reqnum" onClick={toggleOpen} title={`${list.length} open request${list.length > 1 ? 's' : ''}: click to see them`}>{list.length}</button>
-      )}
-      {!missingAsked && <button className="reqbtn" onClick={toggleOpen} title={hasFile ? 'Ask for another or a changed label file' : 'Ask for this label file to be made or uploaded'}>Request</button>}
+    <>
+      <td className="reqtd">
+        {!missingAsked && <button className="reqbtn" onClick={toggleOpen} title={hasFile ? 'Ask for another or a changed label file' : 'Ask for this label file to be made or uploaded'}>Request</button>}
+      </td>
+      <td className="reqtd reqnumtd">
+        <button className={`reqnum${list.length ? '' : ' zero'}`} onClick={toggleOpen}
+          title={list.length ? `${list.length} open request${list.length > 1 ? 's' : ''}: click to see them` : 'No open requests'}>{list.length}</button>
       {open && (
         <div className="reqpop" ref={pop} style={{ top: at.top, bottom: at.bottom, right: at.right }} role="dialog" aria-label={`Requests for ${pdf?.code}`}>
           <div className="reqpop-head"><b>Requests for {pdf?.code}</b><small>Label files now: {pdf?.file_count ?? 0}</small></div>
@@ -160,7 +163,8 @@ function RequestsCell({ row, so, onChanged }: { row: Row; so: string; onChanged:
           {err && <small className="error">{err}</small>}
         </div>
       )}
-    </span>
+      </td>
+    </>
   )
 }
 
@@ -176,7 +180,6 @@ function LinesTable({ group, so, onChanged, picked, setPicked, choice, setChoice
     <Pager info={info} selected={picked.length} onPage={setPage} onSize={(n) => { setSize(n); savePageSize(n); setPage(1) }} />
   )
   const head = group.rows[0]?.fields
-  const totalReq = group.rows.reduce((n, r) => n + (r.pdf?.requests.length ?? 0), 0)
   return (
     <>
       {pager}
@@ -187,7 +190,8 @@ function LinesTable({ group, so, onChanged, picked, setPicked, choice, setChoice
               <th className="rowcheck" />
               {COLUMNS.map((k) => <th key={k}>{head?.[k]?.label ?? k}</th>)}
               <th>Label file</th>
-              <th className="reqhead" title="Open label requests for each item code">Requests{totalReq > 0 && <span className="reqnum static">{totalReq}</span>}</th>
+              <th className="reqhead">Request</th>
+              <th className="reqhead reqnumhead" title="Open requests for the item code. Click a number to read them.">No. of Request</th>
             </tr>
           </thead>
           <tbody>
@@ -210,7 +214,7 @@ function LinesTable({ group, so, onChanged, picked, setPicked, choice, setChoice
                     )
                   })}
                   <td><LabelCell row={r} choice={choice} setChoice={setChoice} /></td>
-                  <td className="reqtd"><RequestsCell row={r} so={so} onChanged={onChanged} /></td>
+                  <RequestsCell row={r} so={so} onChanged={onChanged} />
                 </tr>
               )
             })}
