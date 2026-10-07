@@ -8,7 +8,10 @@ export interface FieldVal { label: string; raw: unknown; display: string; type: 
 export interface LabelFile { id: number; name: string; folder: string; location_id: number }
 
 /** The label PDFs found for one order line's item code. */
-export interface LinePdf { code: string; files: LabelFile[]; selected: number | null }
+/** A request for a missing label file (open until a file for that item code shows up in the Label files list). */
+export interface LineRequest { id: number; created_at: string | null; requested_by_name: string }
+
+export interface LinePdf { code: string; files: LabelFile[]; selected: number | null; request: LineRequest | null }
 
 export interface Row {
   row_id: string
@@ -56,3 +59,10 @@ export interface LabelRow {
   status: 'ok' | 'missing'; size: number; last_checked: string | null
 }
 export interface LabelSearch { total: number; page: number; size: number; items: LabelRow[] }
+
+export interface LabelRequestRow {
+  id: number; code: string; name: string; so: string; status: 'open' | 'solved'
+  requested_by: number; requested_by_name: string; created_at: string | null; solved_at: string | null
+  file_id: number | null; file_name: string | null; file_url: string | null
+}
+export interface LabelRequests { items: LabelRequestRow[]; counts: { open: number; solved: number } }

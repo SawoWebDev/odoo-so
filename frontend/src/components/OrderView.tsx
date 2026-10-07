@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { ApiError, api } from '../api'
 import { PAGE_SIZES, type PageInfo, loadPageSize, pageInfo, savePageSize } from '../paging'
 import { type Choice, type Picked, canTick, toggle } from '../selection'
 import type { Group, Resolved, Row } from '../types'
@@ -62,9 +63,33 @@ function Pager({ info, selected, onPage, onSize }: {
 }
 
 /** The PDF(s) found for the line's item code. */
-function LabelCell({ row, choice, setChoice }: { row: Row; choice: Choice; setChoice: (c: Choice) => void }) {
+function RequestCell({ row, so, onChanged }: { row: Row; so: string; onChanged: () => void }) {
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState('')
+  const asked = row.pdf?.request
+  if (asked) {
+    const when = asked.created_at ? new Date(asked.created_at).toLocaleString() : ''
+    return <span className="requested-txt" title={`Requested by ${asked.requested_by_name}${when ? ` on ${when}` : ''}. It closes by itself when the file is added to Label files.`}>Label requested</span>
+  }
+  const send = async () => {
+    setBusy(true); setErr('')
+    try {
+      await api('/label-requests', { method: 'POST', json: { code: row.pdf?.code ?? '', name: row.fields['line.product.name']?.display ?? '', so } })
+      onChanged()
+    } catch (e) { setErr(e instanceof ApiError ? e.message : String(e)) } finally { setBusy(false) }
+  }
+  return (
+    <span className="reqcell">
+      <span className="nopdf">No label file</span>
+      <button className="reqbtn" onClick={send} disabled={busy} title="Ask for this label file to be made or uploaded">{busy ? 'Requesting…' : 'Request'}</button>
+      {err && <small className="error">{err}</small>}
+    </span>
+  )
+}
+
+function LabelCell({ row, so, onChanged, choice, setChoice }: { row: Row; so: string; onChanged: () => void; choice: Choice; setChoice: (c: Choice) => void }) {
   const pdf = row.pdf
-  if (!pdf || pdf.files.length === 0) return <span className="nopdf">No label file</span>
+  if (!pdf || pdf.files.length === 0) return <RequestCell row={row} so={so} onChanged={onChanged} />
   const id = row.line_id as number
   const current = choice[id] ?? pdf.selected ?? pdf.files[0].id
   const f = pdf.files.find((x) => x.id === current) ?? pdf.files[0]
@@ -82,8 +107,8 @@ function LabelCell({ row, choice, setChoice }: { row: Row; choice: Choice; setCh
   )
 }
 
-function LinesTable({ group, picked, setPicked, choice, setChoice }: {
-  group: Group; picked: Picked; setPicked: (p: Picked) => void; choice: Choice; setChoice: (c: Choice) => void
+function LinesTable({ group, so, onChanged, picked, setPicked, choice, setChoice }: {
+  group: Group; so: string; onChanged: () => void; picked: Picked; setPicked: (p: Picked) => void; choice: Choice; setChoice: (c: Choice) => void
 }) {
   const [page, setPage] = useState(1)
   const [size, setSize] = useState(loadPageSize)
@@ -109,7 +134,7 @@ function LinesTable({ group, picked, setPicked, choice, setChoice }: {
           <tbody>
             {rows.map((r) => {
               const on = r.line_id !== null && picked.includes(r.line_id)
-              const cls = r.disabled_kind === 'no_label' ? 'nolabel' : r.disabled ? 'disabled' : on ? 'picked' : ''
+              const cls = r.disabled_kind === 'no_label' ? (r.pdf?.request ? 'requested' : 'nolabel') : r.disabled ? 'disabled' : on ? 'picked' : ''
               return (
                 <tr key={r.row_id} className={cls} title={r.disabled ? r.disabled_reason : undefined}>
                   <th className="rowcheck">
@@ -125,7 +150,7 @@ function LinesTable({ group, picked, setPicked, choice, setChoice }: {
                       </td>
                     )
                   })}
-                  <td><LabelCell row={r} choice={choice} setChoice={setChoice} /></td>
+                  <td><LabelCell row={r} so={so} onChanged={onChanged} choice={choice} setChoice={setChoice} /></td>
                 </tr>
               )
             })}
@@ -137,8 +162,8 @@ function LinesTable({ group, picked, setPicked, choice, setChoice }: {
   )
 }
 
-export default function OrderView({ resolved, picked, setPicked, choice, setChoice }: {
-  resolved: Resolved; picked: Picked; setPicked: (p: Picked) => void; choice: Choice; setChoice: (c: Choice) => void
+export default function OrderView({ resolved, onChanged, picked, setPicked, choice, setChoice }: {
+  resolved: Resolved; onChanged: () => void; picked: Picked; setPicked: (p: Picked) => void; choice: Choice; setChoice: (c: Choice) => void
 }) {
   const refs = resolved.groups.find((g) => g.id === 'references')
   const hasRefs = !!refs && refs.rows.length > 0
@@ -164,7 +189,7 @@ export default function OrderView({ resolved, picked, setPicked, choice, setChoi
           {g.rows.length > 0 && g.id === 'lines' && (!hasRefs || chosen) && (
             visible(g).rows.length === 0
               ? <p className="muted pad">No order line with an item code is moved by {chosen?.label}.</p>
-              : <LinesTable key={chosen?.row_id ?? 'all'} group={visible(g)} picked={picked} setPicked={setPicked} choice={choice} setChoice={setChoice} />
+              : <LinesTable key={chosen?.row_id ?? 'all'} so={resolved.so} onChanged={onChanged} group={visible(g)} picked={picked} setPicked={setPicked} choice={choice} setChoice={setChoice} />
           )}
         </section>
       ))}

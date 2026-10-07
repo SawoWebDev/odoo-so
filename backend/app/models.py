@@ -57,6 +57,26 @@ class LabelFile(Base):
     last_checked: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
+class LabelRequest(Base):
+    """Someone asked for the label file of an item code (the order line had none). One open request per code; it is
+    solved and closed as soon as a label file for that code is saved in the list."""
+
+    __tablename__ = "label_request"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    code_key: Mapped[str] = mapped_column(String(255), index=True)  # item code, upper case
+    item_code: Mapped[str] = mapped_column(String(255))
+    product_name: Mapped[str] = mapped_column(String(512), default="")
+    so_name: Mapped[str] = mapped_column(String(64), default="")
+    requested_by: Mapped[int] = mapped_column(Integer, index=True)
+    requested_by_name: Mapped[str] = mapped_column(String(255), default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    status: Mapped[str] = mapped_column(String(16), default="open", index=True)  # open | solved
+    solved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    file_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    file_name: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    file_url: Mapped[str | None] = mapped_column(String(2048), nullable=True)  # the link of the file that solved it
+
+
 class LabelPrintJob(Base):
     """One print / export. `items_json` lists every PDF used: line, item code, where it was, its SHA-256 and size.
     A copy of each file is kept by hash so a reprint is identical even if the file changes or disappears later."""

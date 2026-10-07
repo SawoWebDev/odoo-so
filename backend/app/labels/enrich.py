@@ -4,10 +4,11 @@ from __future__ import annotations
 
 import copy
 
-from .index import LabelIndex
+from .index import LabelIndex, norm
 
 
-def enrich(resolved: dict, index: LabelIndex) -> dict:
+def enrich(resolved: dict, index: LabelIndex, requests: dict | None = None) -> dict:
+    """`requests`: open label requests by item code (upper case) -> {id, created_at, requested_by_name}."""
     out = copy.deepcopy(resolved)  # the cached Odoo result is shared; never mutate it
     for g in out["groups"]:
         if g["id"] != "lines":
@@ -16,8 +17,10 @@ def enrich(resolved: dict, index: LabelIndex) -> dict:
             code = r["fields"]["line.product.code"]["raw"] or ""
             cands = index.candidates(code)
             r["pdf"] = {"code": code, "files": [e.public() for e in cands],
-                        "selected": cands[0].id if cands else None}
+                        "selected": cands[0].id if cands else None, "request": None}
             if not cands:
+                asked = (requests or {}).get(norm(code))
+                r["pdf"]["request"] = asked
                 gone = index.missing(code)
                 reason = (f"The label file for {code} was deleted or renamed (last saved as {gone[0].rel_path}). "
                           "Check the Label files tab." if gone else f"No label PDF found for item code {code}")

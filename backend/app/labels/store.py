@@ -192,7 +192,10 @@ def fetch(db: Session, loc: LabelLocation, settings: Settings) -> dict:
     loc.last_fetched_at = loc.last_checked_at = now
     db.commit()
     get_index_invalidate()
-    return {"added": added, "restored": restored, "now_missing": gone, "files": len(seen)}
+    from .requests import resolve_matching
+
+    solved = resolve_matching(db)  # label requests whose file is now in the list are closed
+    return {"requests_solved": solved, "added": added, "restored": restored, "now_missing": gone, "files": len(seen)}
 
 
 def check(db: Session, loc: LabelLocation) -> dict:
