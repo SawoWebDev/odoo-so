@@ -139,8 +139,12 @@ function RequestsCell({ row, so, onChanged }: { row: Row; so: string; onChanged:
         {!missingAsked && <button className="reqbtn" onClick={toggleOpen} title={hasFile ? 'Ask for another or a changed label file' : 'Ask for this label file to be made or uploaded'}>Request</button>}
       </td>
       <td className="reqtd reqnumtd">
-        <button className={`reqnum${list.length ? '' : ' zero'}`} onClick={toggleOpen}
-          title={list.length ? `${list.length} open request${list.length > 1 ? 's' : ''}: click to see them` : 'No open requests'}>{list.length}</button>
+        {list.length > 0 ? (
+          <button className="reqnum" onClick={toggleOpen}
+            title={`${list.length} open request${list.length > 1 ? 's' : ''}: click to see them`}>{list.length}</button>
+        ) : (
+          <span className="reqnum zero" aria-label="No open requests">0</span>  /* nothing to open: plain text, not a link */
+        )}
       {open && (
         <div className="reqpop" ref={pop} style={{ top: at.top, bottom: at.bottom, right: at.right }} role="dialog" aria-label={`Requests for ${pdf?.code}`}>
           <div className="reqpop-head"><b>Requests for {pdf?.code}</b><small>Label files now: {pdf?.file_count ?? 0}</small></div>
