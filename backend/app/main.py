@@ -16,6 +16,7 @@ from .labels.share import ShareDown
 from .labels.requests import router as requests_router
 from .labels.router import router as labels_router
 from .printing import router as print_router
+from .settings_router import router as settings_router
 from .so_router import router as so_router
 
 log = logging.getLogger("sticker")
@@ -80,3 +81,4 @@ app.include_router(so_router)
 app.include_router(labels_router)
 app.include_router(requests_router)
 app.include_router(print_router)
+app.include_router(settings_router)

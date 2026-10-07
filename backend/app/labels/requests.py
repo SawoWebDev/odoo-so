@@ -5,7 +5,7 @@ saved in the Label files list (a folder was read, or a file came back), the requ
 the open list and keeps the link of the file that solved it."""
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
@@ -50,7 +50,7 @@ def resolve_matching(db: Session) -> int:
 
 
 @router.post("")
-def create(body: RequestIn, user: CurrentUser = Depends(current_user), db: Session = Depends(get_db)):
+def create(body: RequestIn, background: BackgroundTasks, user: CurrentUser = Depends(current_user), db: Session = Depends(get_db)):
     """Ask for the label file of an item code. Asking again for a code that is already requested changes nothing."""
     code = body.code.strip()
     key = norm(code)
@@ -67,6 +67,9 @@ def create(body: RequestIn, user: CurrentUser = Depends(current_user), db: Sessi
     db.add(r)
     db.commit()
     audit(db, user.uid, "label_request", body.so.strip(), code[:200])
+    from .. import mailer
+
+    background.add_task(mailer.notify_new_request, request_json(r))  # email the receivers (if set up on the Settings tab)
     return {"request": request_json(r), "existing": False}
 
 

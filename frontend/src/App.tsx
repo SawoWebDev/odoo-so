@@ -4,11 +4,12 @@ import History from './pages/History'
 import Labels from './pages/Labels'
 import Login from './pages/Login'
 import Requests from './pages/Requests'
+import Settings from './pages/Settings'
 import Trace from './pages/Trace'
 import Users from './pages/Users'
 import type { Me } from './types'
 
-type Tab = 'trace' | 'labels' | 'requests' | 'history' | 'users'
+type Tab = 'trace' | 'labels' | 'requests' | 'history' | 'users' | 'settings'
 
 export default function App() {
   const [me, setMe] = useState<Me | null>(null)
@@ -47,6 +48,7 @@ export default function App() {
         <button className={tab === 'labels' ? 'on' : ''} onClick={() => setTab('labels')}>Label files</button>
         <button className={tab === 'requests' ? 'on' : ''} onClick={() => setTab('requests')}>Requests</button>
         <button className={tab === 'history' ? 'on' : ''} onClick={() => setTab('history')}>Print history</button>
+        {admin && <button className={tab === 'settings' ? 'on' : ''} onClick={() => setTab('settings')}>Settings</button>}
         {admin && <button className={tab === 'users' ? 'on' : ''} onClick={() => setTab('users')}>Roles</button>}
         <span className="spacer" />
         <span className="who">{me.name} · <em>{admin ? 'admin' : me.role}</em></span>
@@ -58,6 +60,7 @@ export default function App() {
         {tab === 'labels' && <Labels me={me} />}
         {tab === 'requests' && <Requests me={me} />}
         {tab === 'history' && <History me={me} />}
+        {tab === 'settings' && admin && <Settings />}
         {tab === 'users' && admin && <Users />}
       </main>
     </>

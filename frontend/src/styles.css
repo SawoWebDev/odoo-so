@@ -127,3 +127,11 @@ tr.requested td small { color: #3b82f6; }
 button.reqbtn { padding: 2px 10px; font-size: 12px; background: #fff; border-color: #c2410c; color: #c2410c; }
 button.reqbtn:hover:not(:disabled) { background: #c2410c; color: #fff; }
 td.num-col, th.num-col { text-align: right; }
+
+.panel h4 { margin: 14px 0 4px; }
+label.check { display: flex; align-items: center; gap: 8px; margin: 10px 0; font-weight: 600; }
+fieldset.cfg { border: 1px solid var(--line); border-radius: 8px; margin: 12px 0; padding: 10px 14px 14px; }
+fieldset.cfg legend { padding: 0 6px; font-weight: 600; font-size: 13px; color: var(--muted); }
+.cfgrow { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px 16px; margin-bottom: 8px; }
+fieldset.cfg label { display: block; font-size: 12px; color: var(--muted); }
+fieldset.cfg label input, fieldset.cfg label select, fieldset.cfg label textarea { display: block; width: 100%; margin-top: 3px; font-size: 14px; color: var(--ink); }
