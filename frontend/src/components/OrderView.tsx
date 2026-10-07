@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { ApiError, api } from '../api'
 import { PAGE_SIZES, type PageInfo, loadPageSize, pageInfo, savePageSize } from '../paging'
 import { type Choice, type Picked, canTick, toggle } from '../selection'
-import type { Group, Resolved, Row } from '../types'
+import { KIND_LABEL, type Group, type Resolved, type Row } from '../types'
 
 const COLUMNS = ['line.product.code', 'line.product.name', 'line.qty']
 
@@ -95,6 +95,7 @@ function RequestsCell({ row, so, onChanged }: { row: Row; so: string; onChanged:
   const [open, setOpen] = useState(false)
   const [at, setAt] = useState<{ top?: number; bottom?: number; right: number }>({ right: 0 })
   const [note, setNote] = useState('')
+  const [kind, setKind] = useState<'additional' | 'change'>('additional')
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
   const anchor = useRef<HTMLElement | null>(null)
@@ -127,7 +128,7 @@ function RequestsCell({ row, so, onChanged }: { row: Row; so: string; onChanged:
     try {
       await api('/label-requests', { method: 'POST', json: {
         code: pdf?.code ?? '', name: row.fields['line.product.name']?.display ?? '', so,
-        kind: hasFile ? 'change' : 'missing', note: hasFile ? note : '' } })
+        kind: hasFile ? kind : 'missing', note: hasFile ? note : '' } })
       setNote(''); setOpen(false); onChanged()
     } catch (e) { setErr(e instanceof ApiError ? e.message : String(e)) } finally { setBusy(false) }
   }
@@ -146,16 +147,19 @@ function RequestsCell({ row, so, onChanged }: { row: Row; so: string; onChanged:
           {list.length === 0 && <p className="muted small">No requests yet.</p>}
           {list.map((q) => (
             <div key={q.id} className="reqitem">
-              <div><b>{q.kind === 'change' ? 'Change' : 'Missing label'}</b>{q.note && <> &mdash; {q.note}</>}</div>
+              <div><b>{KIND_LABEL[q.kind]}</b>{q.note && <> &mdash; {q.note}</>}</div>
               <small>{q.requested_by_name}{stamp(q.created_at) && ` · ${stamp(q.created_at)}`}</small>
-              <small className="wait">Pending: {q.files_now} of {q.expected} label files</small>
+              <small className="wait">{q.kind === 'change' ? 'Pending: until the change is done (closed with Done on the Requests tab)' : `Pending: ${q.files_now} of ${q.expected} label files`}</small>
             </div>
           ))}
           {hasFile ? (
             <div className="reqform">
+              <b className="small">New request</b>
+              <label className="reqopt"><input type="radio" name={`kind-${row.row_id}`} checked={kind === 'additional'} onChange={() => setKind('additional')} /> {KIND_LABEL.additional}</label>
+              <label className="reqopt"><input type="radio" name={`kind-${row.row_id}`} checked={kind === 'change'} onChange={() => setKind('change')} /> {KIND_LABEL.change}</label>
               <textarea rows={2} value={note} onChange={(e) => setNote(e.target.value)} maxLength={1000} autoFocus
-                placeholder="What do you need? e.g. a version without logo, a new size…" />
-              <button className="primary" onClick={send} disabled={busy || !note.trim()}>{busy ? 'Sending…' : 'Send request'}</button>
+                placeholder={kind === 'change' ? 'What has to be changed? e.g. fix the barcode, new logo…' : 'Which image do you need? e.g. a version without logo, a new size… (optional)'} />
+              <button className="primary" onClick={send} disabled={busy || (kind === 'change' && !note.trim())}>{busy ? 'Sending…' : 'Send request'}</button>
             </div>
           ) : missingAsked ? null : (
             <div className="reqform"><button className="primary" onClick={send} disabled={busy}>{busy ? 'Requesting…' : 'Request this label file'}</button></div>

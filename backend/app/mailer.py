@@ -150,20 +150,27 @@ def _remember(db: Session, cfg: dict, status: str) -> None:
 
 
 def request_text(req: dict, app_url: str) -> tuple[str, str]:
-    change = req.get("kind") == "change"
-    subject = f"Label {'change request' if change else 'request'}: {req['code']}" + (f" (SO {req['so']})" if req["so"] else "")
+    kind = req.get("kind", "missing")
+    title, intro = {
+        "missing": ("Label request", "A label file has been requested."),
+        "additional": ("Additional image request", "An additional label image has been requested."),
+        "change": ("Label change request", "A change or modification of an existing label file has been requested."),
+    }[kind]
+    subject = f"{title}: {req['code']}" + (f" (SO {req['so']})" if req["so"] else "")
     lines = [
-        "A change to an existing label file has been requested." if change else "A label file has been requested.", "",
+        intro, "",
         f"Item code:     {req['code']}",
         f"Product name:  {req['name'] or '-'}",
         f"Sales order:   {req['so'] or '-'}",
         f"Requested by:  {req['requested_by_name']}",
         f"Requested on:  {req['created_at']}", "",
     ]
-    if change:
-        lines += [f"What is needed: {req['note']}",
+    if kind == "additional":
+        lines += [f"What is needed: {req['note'] or '-'}",
                   f"Label files for this item code: {req.get('files_now', '?')} now, {req.get('expected', '?')} wanted", "",
                   "The request closes by itself when that many label files are in Label files (or close it with Done)."]
+    elif kind == "change":
+        lines += [f"What has to be changed: {req['note']}", "", "Close the request on the Requests tab (Done) once it is finished."]
     else:
         lines += ["There is no label file for this item code. Please add it to the label folder; the request closes by "
                   "itself once the file shows up in Label files."]

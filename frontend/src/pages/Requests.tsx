@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { ApiError, api } from '../api'
-import type { LabelRequests, Me } from '../types'
+import { KIND_LABEL, type LabelRequests, type Me } from '../types'
 
 const when = (iso: string | null) => (iso ? new Date(iso).toLocaleString() : '—')
 
@@ -41,8 +41,9 @@ export default function Requests({ me }: { me: Me }) {
       <p className="muted small">
         From the Trace &amp; print tab, a line with <b>no label file</b> can be requested; the request closes by itself when a label file for that
         item code is added to <b>Label files</b> (Read folder), and its link is kept under Solved. A line that <b>has</b> a label file can be
-        requested too, with a note of what is needed. Every request waits for one more label file than the item code has when it is asked
-        (3 files + 1 request: pending until there are 4), and closes by itself when that many are saved; <b>Done</b> closes one by hand.
+        requested too: choose <b>Additional image</b> or <b>Changes or modifications</b> and say what is needed. An additional image waits for one more label file
+        than the item code has when it is asked (3 files + 1 request: pending until there are 4) and closes by itself when that many are saved; a change
+        is closed with <b>Done</b> when the work is finished.
       </p>
       <div className="actions">
         <button className={status === 'open' ? 'primary' : ''} onClick={() => setStatus('open')}>Open{data ? ` (${data.counts.open})` : ''}</button>
@@ -62,14 +63,14 @@ export default function Requests({ me }: { me: Me }) {
             {data.items.map((r) => (
               <tr key={r.id}>
                 <td><b>{r.code}</b></td><td>{r.name || <em>—</em>}</td>
-                <td>{r.kind === 'change' ? 'Change' : 'Missing label'}</td><td>{r.kind === 'change' ? r.note : <em>a label file</em>}</td>
-                {status === 'open' && <td title="The request is done when the item code has this many label files">has <b>{r.files_now ?? 0}</b>, needs <b>{r.expected}</b></td>}<td>{r.so || <em>—</em>}</td>
+                <td>{KIND_LABEL[r.kind]}</td><td>{r.kind === 'missing' ? <em>a label file</em> : (r.note || <em>an additional image</em>)}</td>
+                {status === 'open' && (r.kind === 'change' ? <td className="muted">—</td> : <td title="The request is done when the item code has this many label files">has <b>{r.files_now ?? 0}</b>, needs <b>{r.expected}</b></td>)}<td>{r.so || <em>—</em>}</td>
                 <td>{r.requested_by_name}</td><td>{when(r.created_at)}</td>
                 {status === 'solved' ? (
-                  <><td>{when(r.solved_at)}</td><td className="path" title={r.file_url ?? ''}>{r.kind === 'change' ? <em>done</em> : <><b>{r.file_name}</b><br />{r.file_url}</>}</td></>
+                  <><td>{when(r.solved_at)}</td><td className="path" title={r.file_url ?? ''}>{r.kind === 'change' || !r.file_name ? <em>done</em> : <><b>{r.file_name}</b><br />{r.file_url}</>}</td></>
                 ) : (
                   <td className="nowrap">
-                    {r.kind === 'change' && <button disabled={busy} onClick={() => done(r.id)} title="The change has been made">Done</button>}{' '}
+                    {r.kind !== 'missing' && <button disabled={busy} onClick={() => done(r.id)} title="Close this request now">Done</button>}{' '}
                     {(admin || r.requested_by === me.uid) && <button className="link" disabled={busy} onClick={() => del(r.id, r.code)}>Delete</button>}
                   </td>
                 )}

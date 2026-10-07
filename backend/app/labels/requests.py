@@ -1,14 +1,15 @@
-"""Label requests, two kinds:
+"""Label requests, three kinds:
 
-  missing  the order line has no label file, so someone asks for it to be made / uploaded. One open request per item
-           code (everybody sees it as already requested).
-  change   the line HAS a label file but someone wants another one or a new version; the text says what. Several can be
-           open for a code.
+  missing     the order line has no label file, so someone asks for it to be made / uploaded. One open request per
+              item code (everybody sees it as already requested).
+  additional  the line HAS a label file but someone wants an additional image (another label file); the text says which.
+  change      the line has a label file and someone wants it changed or modified; the text says what. It adds no file,
+              so it is closed by hand ("Done") when the work is finished.
 
-How a request is finished: it counts the label files of its item code. A request asked when the code has 3 files waits
-for a 4th; a second request waiting at the same time needs a 5th. As soon as the saved list (Label files) holds that many
-files for the code, the request is solved and closed: it leaves the open list and keeps the link of the newest file.
-A change request can also be closed by hand ("Done")."""
+How a missing / additional request is finished: it counts the label files of its item code. A request asked when the
+code has 3 files waits for a 4th; a second one waiting at the same time needs a 5th. As soon as the saved list (Label
+files) holds that many files for the code, the request is solved and closed: it leaves the open list and keeps the link
+of the newest file. Change requests do not take part in the count."""
 from __future__ import annotations
 
 from typing import Literal
@@ -30,8 +31,8 @@ class RequestIn(BaseModel):
     code: str = Field(min_length=1, max_length=255)
     name: str = Field(default="", max_length=512)
     so: str = Field(default="", max_length=64)
-    kind: Literal["missing", "change"] = "missing"
-    note: str = Field(default="", max_length=1000)  # required for a change request: what is needed
+    kind: Literal["missing", "additional", "change"] = "missing"
+    note: str = Field(default="", max_length=1000)  # what is needed; required for a change, optional for an additional image
 
 
 def file_counts(db: Session) -> dict[str, int]:
@@ -69,7 +70,7 @@ def resolve_matching(db: Session) -> int:
     counts = file_counts(db)
     solved = 0
     for r in db.query(LabelRequest).filter(LabelRequest.status == "open").order_by(LabelRequest.id).all():
-        need = r.expected or (1 if r.kind == "missing" else 0)  # old change requests have no count: closed by hand
+        need = r.expected or (1 if r.kind == "missing" else 0)  # a change has no count: it is closed by hand
         if need <= 0 or counts.get(r.code_key, 0) < need:
             continue
         f = (db.query(LabelFile).filter(LabelFile.code_key == r.code_key, LabelFile.status == "ok")
@@ -94,13 +95,13 @@ def create(body: RequestIn, background: BackgroundTasks, user: CurrentUser = Dep
     resolve_matching(db)
     have = file_counts(db).get(key, 0)
     note = " ".join(body.note.split())
-    if body.kind == "change":
+    if body.kind in ("additional", "change"):
         if not have:
             raise HTTPException(409, f"There is no label file for {code} yet: request the missing label instead.")
-        if not note:
-            raise HTTPException(422, "Write what you need (for example: a version without logo, a new size).")
+        if body.kind == "change" and not note:
+            raise HTTPException(422, "Write what has to be changed (for example: fix the barcode, new logo).")
         existing = (db.query(LabelRequest).filter(LabelRequest.code_key == key, LabelRequest.status == "open",
-                                                  LabelRequest.kind == "change", LabelRequest.requested_by == user.uid,
+                                                  LabelRequest.kind == body.kind, LabelRequest.requested_by == user.uid,
                                                   LabelRequest.note == note).first())
     else:
         if have:
@@ -109,14 +110,18 @@ def create(body: RequestIn, background: BackgroundTasks, user: CurrentUser = Dep
                                                  LabelRequest.kind == "missing").first()
     if existing:
         return {"request": request_json(existing, have), "existing": True}
-    waiting = db.query(LabelRequest).filter(LabelRequest.code_key == key, LabelRequest.status == "open").count()
+    waiting = (db.query(LabelRequest).filter(LabelRequest.code_key == key, LabelRequest.status == "open",
+                                             LabelRequest.kind.in_(("missing", "additional"))).count())
+    adds_file = body.kind in ("missing", "additional")
     r = LabelRequest(code_key=key, item_code=code, product_name=body.name.strip(), so_name=body.so.strip(),
-                     kind=body.kind, note=note if body.kind == "change" else "", baseline=have,
-                     expected=have + waiting + 1,  # one more file than there is now, plus those already asked for
+                     kind=body.kind, note=note if body.kind != "missing" else "", baseline=have,
+                     # one more file than there is now, plus those already asked for; a change adds no file
+                     expected=(have + waiting + 1) if adds_file else 0,
                      requested_by=user.uid, requested_by_name=user.name or user.login)
     db.add(r)
     db.commit()
-    audit(db, user.uid, "label_request" if body.kind == "missing" else "label_change", body.so.strip(), code[:200])
+    audit(db, user.uid, {"missing": "label_request", "additional": "label_more", "change": "label_change"}[body.kind],
+          body.so.strip(), code[:200])
     from .. import mailer
 
     background.add_task(mailer.notify_new_request, request_json(r, have))  # email the receivers (if set up on Settings)
@@ -138,11 +143,11 @@ def listing(status: str = "open", user: CurrentUser = Depends(current_user), db:
 
 @router.post("/{request_id}/done")
 def done(request_id: int, user: CurrentUser = Depends(current_user), db: Session = Depends(get_db)):
-    """Close a change request by hand once the work is finished. The person who asked, or anyone who can print / admin."""
+    """Close an additional-image or change request by hand once the work is finished. The person who asked, or anyone who can print / admin."""
     r = db.get(LabelRequest, request_id)
     if r is None:
         raise HTTPException(404, "Unknown request")
-    if r.kind != "change":
+    if r.kind == "missing":
         raise HTTPException(409, "A missing-label request closes by itself when the file is added to Label files.")
     if r.requested_by != user.uid and ROLE_RANK.get(user.role, 0) < ROLE_RANK["printer"]:
         raise HTTPException(403, "Only the person who asked, or someone who can print, can close this request.")

@@ -168,3 +168,6 @@ button.reqnum:hover { background: #1d4ed8; color: #fff; }
 .reqnumtd { border-left: 1px solid var(--line); }
 button.reqnum.zero { background: #f1f5f9; border-color: #cbd5e1; color: #94a3b8; font-weight: 600; }
 button.reqnum.zero:hover { background: #e2e8f0; color: #475569; }
+
+.reqopt { display: flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer; }
+.reqopt input { width: auto; margin: 0; }

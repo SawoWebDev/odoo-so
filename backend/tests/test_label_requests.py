@@ -70,15 +70,15 @@ def test_requests_need_a_login(api):
 
 # ---------------------------------------------------------------- change requests (the line HAS a file) ------------
 
-def change(api, note="Change the artwork to the new logo", code="220-TD", so="S00123"):
-    return api.post("/api/label-requests", json={"code": code, "name": "Thermometer", "so": so, "kind": "change", "note": note})
+def change(api, note="Change the artwork to the new logo", code="220-TD", so="S00123", kind="additional"):
+    return api.post("/api/label-requests", json={"code": code, "name": "Thermometer", "so": so, "kind": kind, "note": note})
 
 
 def test_a_line_with_a_file_can_get_a_change_request_with_a_note(api):
     login(api, "bob")
     assert line(api, "S00123")["pdf"]["requests"] == []
     r = change(api)
-    assert r.status_code == 200 and r.json()["request"]["kind"] == "change" and "new logo" in r.json()["request"]["note"]
+    assert r.status_code == 200 and r.json()["request"]["kind"] == "additional" and "new logo" in r.json()["request"]["note"]
     row = line(api, "S00123")
     assert [c["note"] for c in row["pdf"]["requests"]] == ["Change the artwork to the new logo"]
     assert row["disabled"] is False and row["pdf"]["files"]  # the label can still be printed meanwhile
@@ -90,7 +90,8 @@ def test_a_line_with_a_file_can_get_a_change_request_with_a_note(api):
 
 def test_a_change_request_needs_a_note_and_an_existing_file(api):
     login(api, "bob")
-    assert change(api, "   ").status_code == 422
+    assert change(api, "   ", kind="change").status_code == 422  # a change says what; an additional image may not
+    assert change(api, "   ").status_code == 200
     r = change(api, "something", "RS-1", "S00124")
     assert r.status_code == 409 and "request the missing label instead" in r.text
     r = api.post("/api/label-requests", json={"code": "220-TD", "kind": "missing"})
@@ -102,11 +103,11 @@ def test_change_requests_do_not_mix_with_missing_label_requests(api):
     change(api)
     ask(api)  # RS-1: no file
     lst = api.get("/api/label-requests").json()
-    assert {x["code"]: x["kind"] for x in lst["items"]} == {"220-TD": "change", "RS-1": "missing"}
+    assert {x["code"]: x["kind"] for x in lst["items"]} == {"220-TD": "additional", "RS-1": "missing"}
     make_pdf(api.labels / "01 SAWO/P5/RS-1.pdf", "RS-1")
     api.post("/api/labels/locations/1/fetch")  # solves the missing one only
     open_ = api.get("/api/label-requests").json()["items"]
-    assert [(x["code"], x["kind"]) for x in open_] == [("220-TD", "change")]
+    assert [(x["code"], x["kind"]) for x in open_] == [("220-TD", "additional")]
 
 
 def test_a_change_request_is_closed_by_hand_and_keeps_its_note(api):
@@ -115,7 +116,7 @@ def test_a_change_request_is_closed_by_hand_and_keeps_its_note(api):
     login(api, "carol")  # a printer may close it
     assert api.post(f"/api/label-requests/{rid}/done").status_code == 200
     solved = api.get("/api/label-requests", params={"status": "solved"}).json()["items"]
-    assert solved[0]["kind"] == "change" and solved[0]["note"].startswith("Change the artwork") and solved[0]["solved_at"]
+    assert solved[0]["kind"] == "additional" and solved[0]["note"].startswith("Change the artwork") and solved[0]["solved_at"]
     assert line(api, "S00123")["pdf"]["requests"] == []
     rid2 = ask(api).json()["request"]["id"]
     assert api.post(f"/api/label-requests/{rid2}/done").status_code == 409  # missing ones close themselves
@@ -140,7 +141,7 @@ def test_a_request_waits_for_one_more_label_file_than_there_is_now(api):
     r = change(api, "A version without logo").json()["request"]
     assert r["baseline"] == 2 and r["expected"] == 3 and r["files_now"] == 2
     info = line(api, "S00123")["pdf"]["requests"][0]
-    assert info["expected"] == 3 and info["files_now"] == 2 and info["kind"] == "change"  # pending: 2 of the 3 wanted
+    assert info["expected"] == 3 and info["files_now"] == 2 and info["kind"] == "additional"  # pending: 2 of the 3 wanted
     api.post("/api/labels/rescan")
     assert api.get("/api/label-requests").json()["counts"] == {"open": 1, "solved": 0}  # nothing changed: still pending
     make_pdf(api.labels / "01 SAWO/P1/02 Box Stickers/220-TD -No Logo.pdf", "NO LOGO")  # the 3rd label file arrives
@@ -177,3 +178,29 @@ def test_a_file_that_goes_missing_never_counts_toward_a_request(api):
     api.post("/api/labels/locations/1/fetch")
     # one file went and one came: still 2 usable files, the 3 that were asked for are not there
     assert api.get("/api/label-requests").json()["counts"] == {"open": 1, "solved": 0}
+
+
+# ---------------------------------------------------------------- the two options on a line that has a file ---------
+
+def test_changes_or_modifications_add_no_file_so_they_neither_wait_for_a_count_nor_delay_others(api):
+    login(api, "bob")
+    c = change(api, "Fix the barcode", kind="change").json()["request"]
+    assert c["kind"] == "change" and c["expected"] == 0 and c["files_now"] == 2
+    add = change(api, "A version without logo").json()["request"]
+    assert add["expected"] == 3  # the change in front of it does not count as a file to wait for
+    make_pdf(api.labels / "01 SAWO/P1/02 Box Stickers/220-TD -No Logo.pdf", "NO LOGO")
+    api.post("/api/labels/locations/1/fetch")
+    left = api.get("/api/label-requests").json()["items"]
+    assert [(x["kind"], x["note"]) for x in left] == [("change", "Fix the barcode")]  # a new file does not close a change
+    assert api.post(f"/api/label-requests/{c['id']}/done").status_code == 200  # only "Done" does
+    assert api.get("/api/label-requests").json()["counts"] == {"open": 0, "solved": 2}
+
+
+def test_the_line_lists_both_kinds_with_their_type(api):
+    login(api, "bob")
+    change(api, "Fix the barcode", kind="change")
+    change(api, "Another size")
+    kinds = sorted(q["kind"] for q in line(api, "S00123")["pdf"]["requests"])
+    assert kinds == ["additional", "change"]
+    assert change(api, "x", kind="bogus").status_code == 422
+    assert change(api, "x", "RS-1", "S00124", kind="additional").status_code == 409  # no file yet: request the label itself

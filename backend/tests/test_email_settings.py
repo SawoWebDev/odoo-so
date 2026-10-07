@@ -151,4 +151,8 @@ def test_a_change_request_email_carries_the_note(api):
                                           "note": "Change the artwork to the new logo"})
     assert len(SENT) == 1
     assert SENT[0]["subject"] == "Label change request: 220-TD (SO S00123)"
-    assert "Change the artwork to the new logo" in SENT[0]["body"] and "existing label file" in SENT[0]["body"]
+    assert "Change the artwork to the new logo" in SENT[0]["body"] and "change or modification" in SENT[0]["body"]
+    api.post("/api/label-requests", json={"code": "220-TD", "name": "Thermometer", "so": "S00123", "kind": "additional",
+                                          "note": "Version without logo"})
+    assert SENT[1]["subject"] == "Additional image request: 220-TD (SO S00123)"
+    assert "Version without logo" in SENT[1]["body"] and "2 now, 3 wanted" in SENT[1]["body"]

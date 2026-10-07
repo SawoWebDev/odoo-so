@@ -121,6 +121,9 @@ def ensure_schema(settings: Settings) -> None:
                 conn.execute(text("ALTER TABLE label_request ADD COLUMN baseline INTEGER DEFAULT 0 NOT NULL"))
             if "note" not in have:
                 conn.execute(text("ALTER TABLE label_request ADD COLUMN note VARCHAR(1000) DEFAULT '' NOT NULL"))
+    if "label_request" in insp.get_table_names():
+        with engine.begin() as conn:  # idempotent: a new-style 'change' request has no count (expected = 0)
+            conn.execute(text("UPDATE label_request SET kind = 'additional' WHERE kind = 'change' AND expected > 0"))
     if "label_file" in insp.get_table_names() and "url" not in {c["name"] for c in insp.get_columns("label_file")}:
         with engine.begin() as conn:
             conn.execute(text("ALTER TABLE label_file ADD COLUMN url VARCHAR(2048)"))
