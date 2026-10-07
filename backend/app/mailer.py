@@ -103,10 +103,12 @@ def encrypt_password(plain: str, settings: Settings | None = None) -> str:
 def send(cfg: dict, subject: str, body: str, to: list[str], settings: Settings | None = None) -> None:
     """Send one email with the saved sender account. Raises MailError with a readable reason."""
     settings = settings or get_settings()
-    if not cfg["host"].strip() or not cfg["sender_email"]:
-        raise MailError("The SMTP server and the sender address are not set up yet.")
+    if not cfg["host"].strip():
+        raise MailError("Enter the SMTP server (for example mail.sawo.com).")
+    if not cfg["sender_email"]:
+        raise MailError("Enter the sender email address (From).")
     if not to:
-        raise MailError("There is no receiver.")
+        raise MailError("Enter at least one receiver, or an address in the test box.")
     msg = EmailMessage()
     msg["Subject"] = subject
     msg["From"] = formataddr((cfg["sender_name"] or "", cfg["sender_email"]))

@@ -130,6 +130,13 @@ def test_the_test_button_reports_success_and_problems(api):
     api.put("/api/settings/email", json=CFG)
     ok = api.post("/api/settings/email/test", json={"to": "me@sawo.test"})
     assert ok.status_code == 200 and SENT[-1]["to"] == "me@sawo.test" and SENT[-1]["subject"].endswith("test email")
+    # the form as it is on screen is tested without saving it first
+    form = {**CFG, "host": "mail.other.test", "port": 465, "security": "ssl", "password": "typed-now"}
+    api.post("/api/settings/email/test", json={"config": form})
+    assert SENT[-1]["host"] == "mail.other.test" and SENT[-1]["port"] == 465 and SENT[-1]["pw"] == "typed-now"
+    assert api.get("/api/settings/email").json()["host"] == "smtp.sawo.test"  # ...and nothing was saved by the test
+    noname = api.post("/api/settings/email/test", json={"config": {**CFG, "sender_email": ""}})
+    assert noname.status_code == 502 and "sender email address" in noname.text  # the missing field is named
     FakeSMTP.fail_connect = True
     bad = api.post("/api/settings/email/test", json={})
     assert bad.status_code == 502 and "Cannot reach the mail server" in bad.text

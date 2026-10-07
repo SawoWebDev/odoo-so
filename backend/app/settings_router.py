@@ -27,7 +27,8 @@ class EmailIn(BaseModel):
 
 
 class TestIn(BaseModel):
-    to: str = Field(default="", max_length=4000)  # empty = the saved receivers
+    to: str = Field(default="", max_length=4000)  # empty = the receivers
+    config: EmailIn | None = None  # the form as it is on screen (even if not saved yet); empty = the saved setup
 
 
 @router.get("/email")
@@ -57,8 +58,18 @@ def put_email(body: EmailIn, user: CurrentUser = Depends(require_role("template_
 @router.post("/email/test")
 def test_email(body: TestIn, user: CurrentUser = Depends(require_role("template_admin")), db: Session = Depends(get_db),
                settings: Settings = Depends(get_settings)):
-    """Send a test message with the SAVED setup, so the admin knows it works before real requests arrive."""
+    """Send a test message with the setup on screen (or the saved one), so the admin knows it works before real requests arrive."""
     cfg = mailer.load(db)
+    if body.config is not None:
+        c = body.config
+        cfg.update(host=c.host.strip(), port=c.port, security=c.security, username=c.username.strip(),
+                   sender_name=c.sender_name.strip(), sender_email=c.sender_email.strip(),
+                   receivers=mailer.parse_receivers(c.receivers))
+        if c.password:
+            cfg["password_enc"] = mailer.encrypt_password(c.password, settings)
+        problem = mailer.validate({**cfg, "enabled": False})
+        if problem:
+            raise HTTPException(422, problem)
     to = mailer.parse_receivers(body.to) if body.to.strip() else cfg["receivers"]
     bad = [t for t in to if not mailer.EMAIL_RE.match(t)]
     if bad:

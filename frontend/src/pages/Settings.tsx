@@ -35,7 +35,9 @@ export default function Settings() {
     apply(c); setMsg('Saved.')
   })
   const test = () => run('test', async () => {
-    const r = await api<{ sent_to: string[] }>('/settings/email/test', { method: 'POST', json: { to: testTo } })
+    const r = await api<{ sent_to: string[] }>('/settings/email/test', { method: 'POST', json: { to: testTo, config: {
+      enabled: cfg.enabled, host: cfg.host, port: Number(cfg.port), security: cfg.security, username: cfg.username,
+      password: password || null, sender_name: cfg.sender_name, sender_email: cfg.sender_email, receivers, app_url: cfg.app_url } } })
     setMsg(`Test email sent to ${r.sent_to.join(', ')}.`)
   })
 
@@ -86,7 +88,7 @@ export default function Settings() {
       <div className="actions">
         <button className="primary" onClick={save} disabled={!!busy}>{busy === 'save' ? 'Saving…' : 'Save'}</button>
         <input value={testTo} onChange={(e) => setTestTo(e.target.value)} placeholder="Test to (empty = the receivers)" style={{ maxWidth: 300 }} />
-        <button onClick={test} disabled={!!busy} title="Sends a test email with the SAVED setup">{busy === 'test' ? 'Sending…' : 'Send test email'}</button>
+        <button onClick={test} disabled={!!busy} title="Sends a test email with what is in the form now (no need to save first)">{busy === 'test' ? 'Sending…' : 'Send test email'}</button>
       </div>
       {msg && <p className="ok">{msg}</p>}
       {error && <p className="error">{error}</p>}
