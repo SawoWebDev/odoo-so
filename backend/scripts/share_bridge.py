@@ -90,10 +90,30 @@ def make_handler(bridge: Bridge):
             self.end_headers()
             self.wfile.write(body)
 
+        def _html(self, b: Bridge):
+            app = os.environ.get("APP_URL", "http://localhost:8090")
+            page = (
+                "<!doctype html><meta charset=utf-8><title>Share bridge</title>"
+                "<style>body{font:16px system-ui;max-width:640px;margin:60px auto;padding:0 16px;color:#1c2330}"
+                "a.b{display:inline-block;background:#1f5fbf;color:#fff;padding:10px 18px;border-radius:8px;text-decoration:none}"
+                ".ok{color:#1a7f4b;font-weight:600}code{background:#eef1f5;padding:2px 6px;border-radius:4px}</style>"
+                "<h1>Share bridge</h1><p class=ok>&#9679; Running</p>"
+                f"<p>Reading <code>{b.root}</code> with this PC's own access. Read-only; nothing is copied.</p>"
+                "<p>Keep this window open while you use the label system.</p>"
+                f'<p><a class=b href="{app}">Open the SO Sticker System</a></p>'
+            ).encode()
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html; charset=utf-8")
+            self.send_header("Content-Length", str(len(page)))
+            self.end_headers()
+            self.wfile.write(page)
+
         def do_GET(self):  # the only method there is
             u = urlparse(self.path)
             q = {k: v[0] for k, v in parse_qs(u.query).items()}
             try:
+                if u.path in ("/", "/index.html"):
+                    return self._html(bridge)
                 if u.path == "/health":
                     return self._json({"ok": True, "root": bridge.root})
                 if u.path == "/isdir":
