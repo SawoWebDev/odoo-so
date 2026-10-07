@@ -110,6 +110,9 @@ def ensure_schema(settings: Settings) -> None:
 
     engine = get_engine()
     insp = inspect(engine)
+    if "app_user" in insp.get_table_names() and "email" not in {c["name"] for c in insp.get_columns("app_user")}:
+        with engine.begin() as conn:
+            conn.execute(text("ALTER TABLE app_user ADD COLUMN email VARCHAR(255) DEFAULT '' NOT NULL"))
     if "label_request" in insp.get_table_names():
         have = {c["name"] for c in insp.get_columns("label_request")}
         with engine.begin() as conn:

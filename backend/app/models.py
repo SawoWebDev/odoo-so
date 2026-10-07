@@ -19,6 +19,7 @@ class AppUser(Base):
     odoo_uid: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=False)
     odoo_login: Mapped[str] = mapped_column(String(255), index=True)
     display_name: Mapped[str] = mapped_column(String(255), default="")
+    email: Mapped[str] = mapped_column(String(255), default="")  # from the person's Odoo profile, refreshed at each sign-in
     app_role: Mapped[str] = mapped_column(String(32), default="viewer")  # viewer | printer | template_admin
     last_login: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 

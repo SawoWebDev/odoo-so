@@ -46,7 +46,7 @@ def default_fields(version: str = "17") -> dict[str, dict]:
         },
         "stock.location": {"name": _f()},
         "stock.move": {"picking_id": _f(M2O, "stock.picking"), "product_id": _f(M2O, "product.product")},
-        "res.users": {"name": _f(), "login": _f()},
+        "res.users": {"name": _f(), "login": _f(), "email": _f()},
         "res.partner": {"name": _f()},
     }
 
@@ -197,7 +197,7 @@ def build_dataset(o: FakeOdoo) -> FakeOdoo:
           product_tmpl_id=1002)
     o.add("product.packaging", id=500, product_id=100, name="Carton of 4", qty=4.0, barcode="CARTON-1")
     o.add("res.partner", id=1, name="ACME Ltd")
-    o.add("res.users", id=7, name="Alice Admin", login="alice")
+    o.add("res.users", id=7, name="Alice Admin", login="alice", email="alice@sawo.test")
     o.add("sale.order", id=1, name="S00123", state="sale", date_order="2026-10-01 08:00:00", partner_id=1,
           client_order_ref="PO-77", user_id=7)
     o.add("sale.order", id=2, name="S00124", state="sale", partner_id=1)

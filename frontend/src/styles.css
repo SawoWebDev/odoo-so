@@ -201,3 +201,10 @@ th.reqnumhead, td.reqnumtd { text-align: right; padding-right: 16px; }
 /* beats "table.grid td { text-align: left }": the No. Of Req. numbers and their header sit against the right edge */
 table.grid th.reqnumhead, table.grid td.reqnumtd { text-align: right; padding-right: 18px; }
 table.grid th.reqhead:not(.reqnumhead), table.grid td.reqtd:not(.reqnumtd) { text-align: center; }
+
+/* Roles screen */
+ul.rolelegend { margin: 6px 0 12px; padding-left: 18px; color: var(--muted); }
+ul.rolelegend b { color: var(--ink); display: inline-block; min-width: 56px; }
+table.grid.users td select { width: 140px; }
+table.grid.users td a { color: var(--accent); text-decoration: none; }
+table.grid.users td a:hover { text-decoration: underline; }

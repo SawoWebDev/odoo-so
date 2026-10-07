@@ -46,13 +46,16 @@ def login(body: LoginIn, request: Request, response: Response, db: Session = Dep
         raise HTTPException(502, f"Odoo error: {e}")
     limiter.succeeded(key)
 
-    name = login_name
+    name, email = login_name, ""
     try:
-        rec = client.read("res.users", [client.uid], ["name"])
+        rec = client.read("res.users", [client.uid], ["name", "email"])
         if rec:
             name = rec[0].get("name") or login_name
+            email = rec[0].get("email") or ""
     except OdooError:
         pass
+    if not email and "@" in login_name:
+        email = login_name  # many Odoo logins are the person's email address
 
     user = db.get(AppUser, client.uid)
     if user is None:
@@ -61,7 +64,7 @@ def login(body: LoginIn, request: Request, response: Response, db: Session = Dep
         db.add(user)
     elif login_name.lower() in settings.admin_logins and user.app_role != "template_admin":
         user.app_role = "template_admin"
-    user.odoo_login, user.display_name, user.last_login = login_name, name, utcnow()
+    user.odoo_login, user.display_name, user.email, user.last_login = login_name, name, email, utcnow()
     db.commit()
 
     sid = get_session_store().create(
@@ -95,6 +98,7 @@ class RoleIn(BaseModel):
 @router.get("/users")
 def list_users(user: CurrentUser = Depends(require_role("template_admin")), db: Session = Depends(get_db)):
     return [{"uid": u.odoo_uid, "login": u.odoo_login, "name": u.display_name, "role": u.app_role,
+             "email": u.email or (u.odoo_login if "@" in u.odoo_login else ""),
              "last_login": u.last_login.isoformat() if u.last_login else None}
             for u in db.query(AppUser).order_by(AppUser.odoo_login)]
 

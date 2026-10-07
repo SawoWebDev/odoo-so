@@ -189,3 +189,13 @@ def test_audit_log_records_login_and_search(api, env):
     events = {e.event for e in db.query(AuditEvent).all()}
     db.close()
     assert {"login", "search"} <= events
+
+
+def test_the_roles_list_shows_each_persons_email_from_odoo(api):
+    from tests.conftest import login
+    login(api, "alice")  # alice has an email on her Odoo profile
+    login(api, "bob")    # bob has none and his login is not an address: blank
+    login(api, "alice")
+    users = {u["login"]: u for u in api.get("/api/auth/users").json()}
+    assert users["alice"]["email"] == "alice@sawo.test" and users["alice"]["name"] == "Alice Admin"
+    assert users["bob"]["email"] == ""
