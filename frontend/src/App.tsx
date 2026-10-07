@@ -51,7 +51,7 @@ export default function App() {
         {admin && <button className={tab === 'settings' ? 'on' : ''} onClick={() => setTab('settings')}>Settings</button>}
         {admin && <button className={tab === 'users' ? 'on' : ''} onClick={() => setTab('users')}>Roles</button>}
         <span className="spacer" />
-        <span className="who">{me.name} · <em>{admin ? 'admin' : me.role}</em></span>
+        <span className="who">{me.name} · <em>{admin ? 'admin' : 'user'}</em></span>
         <button onClick={logout}>Sign out</button>
       </nav>
       <main>

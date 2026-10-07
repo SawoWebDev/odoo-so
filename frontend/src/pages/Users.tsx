@@ -13,8 +13,7 @@ const when = (iso: string | null) => (iso ? new Date(iso).toLocaleString([], { d
 export default function Users() {
   const [users, setUsers] = useState<U[]>([])
   const [email, setEmail] = useState('')
-  const [role, setRole] = useState<Role>('printer')
-  const [busy, setBusy] = useState(false)
+    const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState('')
   const [error, setError] = useState('')
 
@@ -28,8 +27,8 @@ export default function Users() {
   const register = (e: React.FormEvent) => {
     e.preventDefault()
     run(async () => {
-      const r = await api<{ registered: boolean; updated: boolean; login: string; role: Role }>('/auth/users', { method: 'POST', json: { email, role } })
-      setMsg(r.updated ? `${r.login} is now ${labelOf(r.role)}.` : `${r.login} is registered as ${labelOf(r.role)}. It applies when they sign in.`)
+      const r = await api<{ registered: boolean; updated: boolean; login: string; role: Role }>('/auth/users', { method: 'POST', json: { email, role: 'template_admin' } })
+      setMsg(r.updated ? `${r.login} is now an admin.` : `${r.login} is registered as an admin. It applies when they sign in.`)
       setEmail('')
     })
   }
@@ -49,25 +48,15 @@ export default function Users() {
     <div className="panel wide">
       <h3>App roles</h3>
       <p className="muted small">
-        Roles only control what this tool lets a person do. Odoo still decides which data each person can see.
-        Only admins can open <b>Settings</b> and <b>Roles</b>; everyone else does not see those tabs.
+        <b>Admins</b> have full access. Everyone else can use the tool (search, print, requests, label files) but does not
+        see <b>Settings</b> and <b>Roles</b>. Odoo still decides which data each person can see.
       </p>
-      <ul className="rolelegend small">
-        <li><b>Viewer</b> search, view and preview labels, make requests</li>
-        <li><b>Printer</b> viewer + print, reprint, read folders, close requests</li>
-        <li><b>Admin</b> printer + manage roles, add folders, email settings, see all print history</li>
-      </ul>
 
       <form className="regform" onSubmit={register}>
-        <label>Register a person
+        <label>Register an admin
           <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="their Odoo login / email, e.g. name@sawo.com" required />
         </label>
-        <label>Role
-          <select value={role} onChange={(e) => setRole(e.target.value as Role)}>
-            <option value="viewer">Viewer</option><option value="printer">Printer</option><option value="template_admin">Admin</option>
-          </select>
-        </label>
-        <button className="primary" disabled={busy || !email.trim()}>Register</button>
+        <button className="primary" disabled={busy || !email.trim()}>Register as admin</button>
       </form>
       {msg && <p className="ok">{msg}</p>}
       {error && <p className="error">{error}</p>}
@@ -81,9 +70,9 @@ export default function Users() {
               <td>{u.pending ? <em className="muted">—</em> : u.login}</td>
               <td>{u.email ? <a href={`mailto:${u.email}`}>{u.email}</a> : <em className="muted">—</em>}</td>
               <td>
-                <select value={u.role} disabled={busy || u.main || u.you} onChange={(e) => setUserRole(u, e.target.value as Role)} aria-label={`Role of ${u.name || u.login}`}
+                <select value={u.role === 'template_admin' ? 'template_admin' : 'printer'} disabled={busy || u.main || u.you} onChange={(e) => setUserRole(u, e.target.value as Role)} aria-label={`Role of ${u.name || u.login}`}
                   title={u.main ? 'The main admin always stays an admin' : u.you ? 'You cannot change your own role' : undefined}>
-                  <option value="viewer">Viewer</option><option value="printer">Printer</option><option value="template_admin">Admin</option>
+                  <option value="template_admin">Admin</option><option value="printer">User</option>
                 </select>
               </td>
               <td className="nowrap">{u.pending ? <span className="muted">not signed in yet</span> : when(u.last_login)}</td>
@@ -99,4 +88,3 @@ export default function Users() {
   )
 }
 
-function labelOf(r: Role) { return r === 'template_admin' ? 'Admin' : r === 'printer' ? 'Printer' : 'Viewer' }
