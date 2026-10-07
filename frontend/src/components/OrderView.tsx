@@ -87,6 +87,43 @@ function RequestCell({ row, so, onChanged }: { row: Row; so: string; onChanged: 
   )
 }
 
+/** For a line that HAS a label file: ask for something to be changed. The text says what; it goes to the Requests tab and email. */
+function ChangeRequest({ row, so, onChanged }: { row: Row; so: string; onChanged: () => void }) {
+  const [open, setOpen] = useState(false)
+  const [note, setNote] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState('')
+  const asked = row.pdf?.changes ?? []
+  const send = async () => {
+    setBusy(true); setErr('')
+    try {
+      await api('/label-requests', { method: 'POST', json: { code: row.pdf?.code ?? '', name: row.fields['line.product.name']?.display ?? '', so, kind: 'change', note } })
+      setNote(''); setOpen(false); onChanged()
+    } catch (e) { setErr(e instanceof ApiError ? e.message : String(e)) } finally { setBusy(false) }
+  }
+  return (
+    <span className="chgcell">
+      {asked.length > 0 && (
+        <span className="requested-txt" title={asked.map((c) => `• ${c.note} (${c.requested_by_name})`).join('\n')}>
+          Requested{asked.length > 1 ? ` ×${asked.length}` : ''}
+        </span>
+      )}
+      <button className="reqbtn" onClick={() => setOpen(!open)} title="Ask for this label to be changed or redone">Request</button>
+      {open && (
+        <span className="chgform">
+          <textarea rows={2} value={note} onChange={(e) => setNote(e.target.value)} autoFocus maxLength={1000}
+            placeholder="What do you need? e.g. change the artwork, fix the barcode, new size…" />
+          <span className="chgbtns">
+            <button className="primary" onClick={send} disabled={busy || !note.trim()}>{busy ? 'Sending…' : 'Send request'}</button>
+            <button onClick={() => { setOpen(false); setErr('') }} disabled={busy}>Cancel</button>
+          </span>
+          {err && <small className="error">{err}</small>}
+        </span>
+      )}
+    </span>
+  )
+}
+
 function LabelCell({ row, so, onChanged, choice, setChoice }: { row: Row; so: string; onChanged: () => void; choice: Choice; setChoice: (c: Choice) => void }) {
   const pdf = row.pdf
   if (!pdf || pdf.files.length === 0) return <RequestCell row={row} so={so} onChanged={onChanged} />
@@ -96,6 +133,7 @@ function LabelCell({ row, so, onChanged, choice, setChoice }: { row: Row; so: st
   const where = f.folder.split('/').slice(-2).join(' / ')
   return (
     <span className="pdfcell">
+      <span className="pdfpick">
       {pdf.files.length > 1 ? (
         <select value={current} onChange={(e) => setChoice({ ...choice, [id]: Number(e.target.value) })} title={`${pdf.files.length} label files for ${pdf.code}`}>
           {pdf.files.map((x) => <option key={x.id} value={x.id}>{x.folder.split('/').slice(-2).join(' / ')} · {x.name}</option>)}
@@ -103,6 +141,8 @@ function LabelCell({ row, so, onChanged, choice, setChoice }: { row: Row; so: st
       ) : (
         <span className="pdfname" title={`${f.folder}/${f.name}`}>{where && <small>{where} / </small>}{f.name}</span>
       )}
+      </span>
+      <ChangeRequest row={row} so={so} onChanged={onChanged} />
     </span>
   )
 }

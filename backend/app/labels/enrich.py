@@ -7,7 +7,7 @@ import copy
 from .index import LabelIndex, norm
 
 
-def enrich(resolved: dict, index: LabelIndex, requests: dict | None = None) -> dict:
+def enrich(resolved: dict, index: LabelIndex, requests: dict | None = None, changes: dict | None = None) -> dict:
     """`requests`: open label requests by item code (upper case) -> {id, created_at, requested_by_name}."""
     out = copy.deepcopy(resolved)  # the cached Odoo result is shared; never mutate it
     for g in out["groups"]:
@@ -17,7 +17,8 @@ def enrich(resolved: dict, index: LabelIndex, requests: dict | None = None) -> d
             code = r["fields"]["line.product.code"]["raw"] or ""
             cands = index.candidates(code)
             r["pdf"] = {"code": code, "files": [e.public() for e in cands],
-                        "selected": cands[0].id if cands else None, "request": None}
+                        "selected": cands[0].id if cands else None, "request": None,
+                        "changes": (changes or {}).get(norm(code), []) if cands else []}
             if not cands:
                 asked = (requests or {}).get(norm(code))
                 r["pdf"]["request"] = asked

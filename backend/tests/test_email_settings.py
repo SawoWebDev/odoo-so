@@ -141,3 +141,14 @@ def test_the_test_button_reports_success_and_problems(api):
     bad = api.post("/api/settings/email/test", json={})
     assert bad.status_code == 502 and "Cannot reach the mail server" in bad.text
     assert api.post("/api/settings/email/test", json={"to": "nope"}).status_code == 422
+
+
+def test_a_change_request_email_carries_the_note(api):
+    login(api, "alice")
+    api.put("/api/settings/email", json=CFG)
+    login(api, "bob")
+    api.post("/api/label-requests", json={"code": "220-TD", "name": "Thermometer", "so": "S00123", "kind": "change",
+                                          "note": "Change the artwork to the new logo"})
+    assert len(SENT) == 1
+    assert SENT[0]["subject"] == "Label change request: 220-TD (SO S00123)"
+    assert "Change the artwork to the new logo" in SENT[0]["body"] and "existing label file" in SENT[0]["body"]

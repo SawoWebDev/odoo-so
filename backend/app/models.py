@@ -71,6 +71,8 @@ class LabelRequest(Base):
     requested_by_name: Mapped[str] = mapped_column(String(255), default="")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     status: Mapped[str] = mapped_column(String(16), default="open", index=True)  # open | solved
+    kind: Mapped[str] = mapped_column(String(16), default="missing", index=True)  # missing (no file) | change (file exists)
+    note: Mapped[str] = mapped_column(String(1000), default="")  # what was asked for (change requests)
     solved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     file_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
     file_name: Mapped[str | None] = mapped_column(String(512), nullable=True)

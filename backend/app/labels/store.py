@@ -110,6 +110,13 @@ def ensure_schema(settings: Settings) -> None:
 
     engine = get_engine()
     insp = inspect(engine)
+    if "label_request" in insp.get_table_names():
+        have = {c["name"] for c in insp.get_columns("label_request")}
+        with engine.begin() as conn:
+            if "kind" not in have:
+                conn.execute(text("ALTER TABLE label_request ADD COLUMN kind VARCHAR(16) DEFAULT 'missing' NOT NULL"))
+            if "note" not in have:
+                conn.execute(text("ALTER TABLE label_request ADD COLUMN note VARCHAR(1000) DEFAULT '' NOT NULL"))
     if "label_file" in insp.get_table_names() and "url" not in {c["name"] for c in insp.get_columns("label_file")}:
         with engine.begin() as conn:
             conn.execute(text("ALTER TABLE label_file ADD COLUMN url VARCHAR(2048)"))

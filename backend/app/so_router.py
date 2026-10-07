@@ -8,7 +8,7 @@ from .db import get_db
 from .deps import CurrentUser, audit, current_user, odoo_client
 from .labels.enrich import enrich
 from .labels.index import get_index
-from .labels.requests import open_by_code, request_json, resolve_matching
+from .labels.requests import open_by_code, open_changes_by_code, request_json, resolve_matching
 from .odoo.client import OdooReadClient
 from .odoo.errors import OdooAuthError, OdooConnectionError, OdooError
 from .resolver.resolver import SONotFound
@@ -40,4 +40,4 @@ def get_so(name: str, refresh: bool = False, user: CurrentUser = Depends(current
     resolve_matching(db)
     asked = {k: {"id": r.id, "created_at": request_json(r)["created_at"], "requested_by_name": r.requested_by_name}
              for k, r in open_by_code(db).items()}
-    return enrich(data, get_index(settings), asked)
+    return enrich(data, get_index(settings), asked, open_changes_by_code(db))

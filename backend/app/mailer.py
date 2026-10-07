@@ -150,17 +150,21 @@ def _remember(db: Session, cfg: dict, status: str) -> None:
 
 
 def request_text(req: dict, app_url: str) -> tuple[str, str]:
-    subject = f"Label request: {req['code']}" + (f" (SO {req['so']})" if req["so"] else "")
+    change = req.get("kind") == "change"
+    subject = f"Label {'change request' if change else 'request'}: {req['code']}" + (f" (SO {req['so']})" if req["so"] else "")
     lines = [
-        "A label file has been requested.", "",
+        "A change to an existing label file has been requested." if change else "A label file has been requested.", "",
         f"Item code:     {req['code']}",
         f"Product name:  {req['name'] or '-'}",
         f"Sales order:   {req['so'] or '-'}",
         f"Requested by:  {req['requested_by_name']}",
         f"Requested on:  {req['created_at']}", "",
-        "There is no label file for this item code. Please add it to the label folder; the request closes by itself "
-        "once the file shows up in Label files.",
     ]
+    if change:
+        lines += [f"What is needed: {req['note']}", "", "Close the request on the Requests tab once it is done."]
+    else:
+        lines += ["There is no label file for this item code. Please add it to the label folder; the request closes by "
+                  "itself once the file shows up in Label files."]
     if app_url:
         lines += ["", f"Open requests: {app_url.rstrip('/')}"]
     return subject, "\n".join(lines)

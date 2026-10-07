@@ -66,3 +66,66 @@ def test_only_the_requester_or_an_admin_can_delete_a_request(api):
 def test_requests_need_a_login(api):
     assert api.get("/api/label-requests").status_code == 401
     assert ask(api).status_code == 401
+
+
+# ---------------------------------------------------------------- change requests (the line HAS a file) ------------
+
+def change(api, note="Change the artwork to the new logo", code="220-TD", so="S00123"):
+    return api.post("/api/label-requests", json={"code": code, "name": "Thermometer", "so": so, "kind": "change", "note": note})
+
+
+def test_a_line_with_a_file_can_get_a_change_request_with_a_note(api):
+    login(api, "bob")
+    assert line(api, "S00123")["pdf"]["changes"] == []
+    r = change(api)
+    assert r.status_code == 200 and r.json()["request"]["kind"] == "change" and "new logo" in r.json()["request"]["note"]
+    row = line(api, "S00123")
+    assert [c["note"] for c in row["pdf"]["changes"]] == ["Change the artwork to the new logo"]
+    assert row["disabled"] is False and row["pdf"]["files"]  # the label can still be printed meanwhile
+    assert change(api).json()["existing"] is True  # same person, same text: not twice
+    assert change(api, "Fix the barcode").json()["existing"] is False  # another text is another request
+    login(api, "carol")
+    assert len(line(api, "S00123")["pdf"]["changes"]) == 2  # everybody sees them
+
+
+def test_a_change_request_needs_a_note_and_an_existing_file(api):
+    login(api, "bob")
+    assert change(api, "   ").status_code == 422
+    r = change(api, "something", "RS-1", "S00124")
+    assert r.status_code == 409 and "request the missing label instead" in r.text
+    r = api.post("/api/label-requests", json={"code": "220-TD", "kind": "missing"})
+    assert r.status_code == 409  # the plain request still means "no file"
+
+
+def test_change_requests_do_not_mix_with_missing_label_requests(api):
+    login(api, "bob")
+    change(api)
+    ask(api)  # RS-1: no file
+    lst = api.get("/api/label-requests").json()
+    assert {x["code"]: x["kind"] for x in lst["items"]} == {"220-TD": "change", "RS-1": "missing"}
+    make_pdf(api.labels / "01 SAWO/P5/RS-1.pdf", "RS-1")
+    api.post("/api/labels/locations/1/fetch")  # solves the missing one only
+    open_ = api.get("/api/label-requests").json()["items"]
+    assert [(x["code"], x["kind"]) for x in open_] == [("220-TD", "change")]
+
+
+def test_a_change_request_is_closed_by_hand_and_keeps_its_note(api):
+    login(api, "bob")
+    rid = change(api).json()["request"]["id"]
+    login(api, "carol")  # a printer may close it
+    assert api.post(f"/api/label-requests/{rid}/done").status_code == 200
+    solved = api.get("/api/label-requests", params={"status": "solved"}).json()["items"]
+    assert solved[0]["kind"] == "change" and solved[0]["note"].startswith("Change the artwork") and solved[0]["solved_at"]
+    assert line(api, "S00123")["pdf"]["changes"] == []
+    rid2 = ask(api).json()["request"]["id"]
+    assert api.post(f"/api/label-requests/{rid2}/done").status_code == 409  # missing ones close themselves
+
+
+def test_viewers_can_ask_but_cannot_close_other_peoples_change_requests(api):
+    from tests.conftest import make_viewer
+    login(api, "bob")
+    rid = change(api).json()["request"]["id"]
+    login(api, "carol")
+    make_viewer(api, 9)
+    assert api.post(f"/api/label-requests/{rid}/done").status_code == 403
+    assert change(api, "my own request").status_code == 200
