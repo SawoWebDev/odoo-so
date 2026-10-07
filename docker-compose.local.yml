@@ -1,0 +1,7 @@
+# Mount a LOCAL folder of label files (read-only) instead of using the share bridge. Enable by adding to .env:
+#     COMPOSE_FILE=docker-compose.yml:docker-compose.local.yml
+#     LABEL_LOCAL_DIR=C:/path/to/the/folder      (and leave SHARE_BRIDGE_URL empty)
+services:
+  backend:
+    volumes:
+      - ${LABEL_LOCAL_DIR:?set LABEL_LOCAL_DIR in .env}:/labels:ro

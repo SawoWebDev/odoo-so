@@ -108,7 +108,7 @@ sample order and writes `docs/VERIFY_REPORT.md`.
 | `CACHE_TTL_SECONDS` | `120` | Per-user cache of an order. **Refresh** bypasses it. |
 | `LABEL_MOUNT_DIR` | `/labels` | Where the share (or local folder) is mounted inside the container. Folder URLs must point below it. |
 | `LABEL_SHARE` | – | The network share that is mounted there, e.g. `//172.16.0.4/Marketing`; this is how a `file://` URL is mapped to the mount. |
-| `LABEL_LOCAL_DIR` | `./labels` | Host folder mounted read-only as `/labels` (local mode). |
+| `LABEL_LOCAL_DIR` | – | Host folder mounted read-only as `/labels` (only with docker-compose.local.yml). |
 | `SHARE_BRIDGE_URL` | – | Address of the share bridge on this PC (`http://host.docker.internal:8765`). When set, folders are read through it and no share login is needed. |
 | `LABEL_SHARE_USER`, `LABEL_SHARE_PASSWORD`, `LABEL_SHARE_DOMAIN` | – | Windows login for the share (network mode, see above). |
 | `LABEL_DEFAULT_LOCATION` | empty | A folder URL added automatically once, when none has been added yet. |

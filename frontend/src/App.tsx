@@ -51,7 +51,8 @@ export default function App() {
         <button onClick={logout}>Sign out</button>
       </nav>
       <main>
-        {tab === 'trace' && <Trace me={me} />}
+        {/* Kept mounted (only hidden) so the search, result, chosen reference and ticks survive a visit to another tab. */}
+        <div style={{ display: tab === 'trace' ? 'block' : 'none' }}><Trace me={me} /></div>
         {tab === 'labels' && <Labels me={me} />}
         {tab === 'history' && <History me={me} />}
         {tab === 'users' && admin && <Users />}

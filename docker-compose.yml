@@ -34,9 +34,9 @@ services:
       STORAGE_DIR: /data/storage
     volumes:
       - storage:/data/storage
-      # The label PDFs, read-only. Default: a local folder (LABEL_LOCAL_DIR). For the network share use
-      # docker-compose.network.yml (see README: set COMPOSE_FILE and the LABEL_SHARE_* values in .env).
-      - ${LABEL_LOCAL_DIR:-./labels}:/labels:ro
+      # No label folder is mounted by default: the label files are read through the share bridge (SHARE_BRIDGE_URL, see
+      # README). To mount a local folder instead add docker-compose.local.yml; for the share with a Windows login add
+      # docker-compose.network.yml (COMPOSE_FILE in .env).
     extra_hosts:
       - "host.docker.internal:host-gateway"  # how the app reaches the share bridge running on this PC
     depends_on:
