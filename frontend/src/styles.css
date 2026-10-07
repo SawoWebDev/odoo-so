@@ -208,3 +208,10 @@ ul.rolelegend b { color: var(--ink); display: inline-block; min-width: 56px; }
 table.grid.users td select { width: 140px; }
 table.grid.users td a { color: var(--accent); text-decoration: none; }
 table.grid.users td a:hover { text-decoration: underline; }
+
+/* register a person on the Roles screen */
+form.regform { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px; margin: 8px 0 6px; }
+form.regform label { display: flex; flex-direction: column; gap: 3px; font-size: 12px; color: var(--muted); }
+form.regform label:first-child { flex: 1 1 320px; }
+form.regform input, form.regform select { font-size: 14px; color: var(--ink); }
+table.grid.users .badge { margin-left: 8px; }

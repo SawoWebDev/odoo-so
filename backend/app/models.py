@@ -24,6 +24,18 @@ class AppUser(Base):
     last_login: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
+class RoleGrant(Base):
+    """A person an admin registered (by email / Odoo login) before they ever signed in. At their first sign-in the grant
+    gives them the chosen role and is used up (they become a normal app_user row)."""
+
+    __tablename__ = "role_grant"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    login: Mapped[str] = mapped_column(String(255), unique=True)  # lower case; matches the Odoo login or email
+    role: Mapped[str] = mapped_column(String(32), default="viewer")
+    added_by: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
 class LabelLocation(Base):
     """A folder of label PDFs that was added on the Label files tab (as a URL)."""
 
