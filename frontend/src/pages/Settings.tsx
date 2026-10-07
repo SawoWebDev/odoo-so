@@ -46,7 +46,7 @@ export default function Settings() {
       <h3>Settings</h3>
       <h4>Email for label requests</h4>
       <p className="muted small">
-        When someone requests a missing label file, an email goes from the <b>sender</b> account below to every <b>receiver</b>.
+        When someone makes a label request, an email goes from the <b>sender</b> account below to every address under <b>Send to</b>.
         The email password is stored encrypted and is never shown again.
       </p>
       <label className="check"><input type="checkbox" checked={cfg.enabled} onChange={(e) => set('enabled', e.target.checked)} /> Send an email for every new label request</label>
@@ -76,8 +76,8 @@ export default function Settings() {
       </fieldset>
 
       <fieldset className="cfg">
-        <legend>Receivers</legend>
-        <label>Email addresses (one per line, or separated by commas)
+        <legend>Send to</legend>
+        <label>Who receives the request emails (one address per line, or separated by commas). Edit and click Save.
           <textarea rows={4} value={receivers} onChange={(e) => setReceivers(e.target.value)} placeholder={'marketing@yourcompany.com\ndesign@yourcompany.com'} />
         </label>
         <label>Link to this app, shown in the email (optional)
@@ -87,7 +87,7 @@ export default function Settings() {
 
       <div className="actions">
         <button className="primary" onClick={save} disabled={!!busy}>{busy === 'save' ? 'Saving…' : 'Save'}</button>
-        <input value={testTo} onChange={(e) => setTestTo(e.target.value)} placeholder="Test to (empty = the receivers)" style={{ maxWidth: 300 }} />
+        <input value={testTo} onChange={(e) => setTestTo(e.target.value)} placeholder="Test send to (empty = the Send to list)" style={{ maxWidth: 300 }} />
         <button onClick={test} disabled={!!busy} title="Sends a test email with what is in the form now (no need to save first)">{busy === 'test' ? 'Sending…' : 'Send test email'}</button>
       </div>
       {msg && <p className="ok">{msg}</p>}
