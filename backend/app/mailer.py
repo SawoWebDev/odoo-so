@@ -161,7 +161,9 @@ def request_text(req: dict, app_url: str) -> tuple[str, str]:
         f"Requested on:  {req['created_at']}", "",
     ]
     if change:
-        lines += [f"What is needed: {req['note']}", "", "Close the request on the Requests tab once it is done."]
+        lines += [f"What is needed: {req['note']}",
+                  f"Label files for this item code: {req.get('files_now', '?')} now, {req.get('expected', '?')} wanted", "",
+                  "The request closes by itself when that many label files are in Label files (or close it with Done)."]
     else:
         lines += ["There is no label file for this item code. Please add it to the label folder; the request closes by "
                   "itself once the file shows up in Label files."]

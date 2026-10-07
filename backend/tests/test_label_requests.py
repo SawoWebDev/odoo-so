@@ -76,16 +76,16 @@ def change(api, note="Change the artwork to the new logo", code="220-TD", so="S0
 
 def test_a_line_with_a_file_can_get_a_change_request_with_a_note(api):
     login(api, "bob")
-    assert line(api, "S00123")["pdf"]["changes"] == []
+    assert line(api, "S00123")["pdf"]["requests"] == []
     r = change(api)
     assert r.status_code == 200 and r.json()["request"]["kind"] == "change" and "new logo" in r.json()["request"]["note"]
     row = line(api, "S00123")
-    assert [c["note"] for c in row["pdf"]["changes"]] == ["Change the artwork to the new logo"]
+    assert [c["note"] for c in row["pdf"]["requests"]] == ["Change the artwork to the new logo"]
     assert row["disabled"] is False and row["pdf"]["files"]  # the label can still be printed meanwhile
     assert change(api).json()["existing"] is True  # same person, same text: not twice
     assert change(api, "Fix the barcode").json()["existing"] is False  # another text is another request
     login(api, "carol")
-    assert len(line(api, "S00123")["pdf"]["changes"]) == 2  # everybody sees them
+    assert len(line(api, "S00123")["pdf"]["requests"]) == 2  # everybody sees them
 
 
 def test_a_change_request_needs_a_note_and_an_existing_file(api):
@@ -116,7 +116,7 @@ def test_a_change_request_is_closed_by_hand_and_keeps_its_note(api):
     assert api.post(f"/api/label-requests/{rid}/done").status_code == 200
     solved = api.get("/api/label-requests", params={"status": "solved"}).json()["items"]
     assert solved[0]["kind"] == "change" and solved[0]["note"].startswith("Change the artwork") and solved[0]["solved_at"]
-    assert line(api, "S00123")["pdf"]["changes"] == []
+    assert line(api, "S00123")["pdf"]["requests"] == []
     rid2 = ask(api).json()["request"]["id"]
     assert api.post(f"/api/label-requests/{rid2}/done").status_code == 409  # missing ones close themselves
 
@@ -129,3 +129,51 @@ def test_viewers_can_ask_but_cannot_close_other_peoples_change_requests(api):
     make_viewer(api, 9)
     assert api.post(f"/api/label-requests/{rid}/done").status_code == 403
     assert change(api, "my own request").status_code == 200
+
+
+# ---------------------------------------------------------------- the label count decides when a request is done -----
+
+def test_a_request_waits_for_one_more_label_file_than_there_is_now(api):
+    login(api, "bob")
+    row = line(api, "S00123")
+    assert row["pdf"]["file_count"] == 2  # 220-TD has two label files
+    r = change(api, "A version without logo").json()["request"]
+    assert r["baseline"] == 2 and r["expected"] == 3 and r["files_now"] == 2
+    info = line(api, "S00123")["pdf"]["requests"][0]
+    assert info["expected"] == 3 and info["files_now"] == 2 and info["kind"] == "change"  # pending: 2 of the 3 wanted
+    api.post("/api/labels/rescan")
+    assert api.get("/api/label-requests").json()["counts"] == {"open": 1, "solved": 0}  # nothing changed: still pending
+    make_pdf(api.labels / "01 SAWO/P1/02 Box Stickers/220-TD -No Logo.pdf", "NO LOGO")  # the 3rd label file arrives
+    res = api.post("/api/labels/locations/1/fetch").json()["result"]
+    assert res["requests_solved"] == 1
+    assert api.get("/api/label-requests").json()["counts"] == {"open": 0, "solved": 1}
+    solved = api.get("/api/label-requests", params={"status": "solved"}).json()["items"][0]
+    assert solved["file_name"] == "220-TD -No Logo.pdf" and solved["file_url"].endswith("220-TD%20-No%20Logo.pdf")  # the new link
+    row = line(api, "S00123")
+    assert row["pdf"]["file_count"] == 3 and row["pdf"]["requests"] == []
+
+
+def test_two_waiting_requests_need_two_new_files_one_after_the_other(api):
+    login(api, "bob")
+    change(api, "No logo version")
+    login(api, "carol")
+    second = change(api, "Version in German").json()["request"]
+    assert second["expected"] == 4  # 2 files now + 1 request ahead + itself
+    make_pdf(api.labels / "01 SAWO/P1/02 Box Stickers/220-TD -No Logo.pdf", "A")
+    api.post("/api/labels/locations/1/fetch")
+    open_ = api.get("/api/label-requests").json()["items"]
+    assert [x["note"] for x in open_] == ["Version in German"] and open_[0]["files_now"] == 3  # the first is done, this waits
+    make_pdf(api.labels / "01 SAWO/P1/02 Box Stickers/220-TD (German).pdf", "B")
+    api.post("/api/labels/locations/1/fetch")
+    assert api.get("/api/label-requests").json()["counts"] == {"open": 0, "solved": 2}
+
+
+def test_a_file_that_goes_missing_never_counts_toward_a_request(api):
+    login(api, "bob")
+    change(api, "Another version")
+    (api.labels / "01 SAWO/P1/01 Individual/220-TD.pdf").unlink()
+    api.post("/api/labels/rescan")
+    make_pdf(api.labels / "01 SAWO/P1/02 Box Stickers/220-TD (x).pdf", "X")
+    api.post("/api/labels/locations/1/fetch")
+    # one file went and one came: still 2 usable files, the 3 that were asked for are not there
+    assert api.get("/api/label-requests").json()["counts"] == {"open": 1, "solved": 0}

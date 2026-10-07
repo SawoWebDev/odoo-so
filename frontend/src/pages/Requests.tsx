@@ -41,7 +41,8 @@ export default function Requests({ me }: { me: Me }) {
       <p className="muted small">
         From the Trace &amp; print tab, a line with <b>no label file</b> can be requested; the request closes by itself when a label file for that
         item code is added to <b>Label files</b> (Read folder), and its link is kept under Solved. A line that <b>has</b> a label file can be
-        requested too, with a note of what is needed (a change); close it with <b>Done</b> when the work is finished.
+        requested too, with a note of what is needed. Every request waits for one more label file than the item code has when it is asked
+        (3 files + 1 request: pending until there are 4), and closes by itself when that many are saved; <b>Done</b> closes one by hand.
       </p>
       <div className="actions">
         <button className={status === 'open' ? 'primary' : ''} onClick={() => setStatus('open')}>Open{data ? ` (${data.counts.open})` : ''}</button>
@@ -53,7 +54,7 @@ export default function Requests({ me }: { me: Me }) {
         <table className="grid">
           <thead>
             <tr>
-              <th>Item code</th><th>Product name</th><th>Type</th><th>What is needed</th><th>Sales order</th><th>Requested by</th><th>Requested on</th>
+              <th>Item code</th><th>Product name</th><th>Type</th><th>What is needed</th>{status === 'open' && <th>Label files</th>}<th>Sales order</th><th>Requested by</th><th>Requested on</th>
               {status === 'solved' ? <><th>Solved on</th><th>Label file (link)</th></> : <th />}
             </tr>
           </thead>
@@ -61,7 +62,8 @@ export default function Requests({ me }: { me: Me }) {
             {data.items.map((r) => (
               <tr key={r.id}>
                 <td><b>{r.code}</b></td><td>{r.name || <em>—</em>}</td>
-                <td>{r.kind === 'change' ? 'Change' : 'Missing label'}</td><td>{r.kind === 'change' ? r.note : <em>a label file</em>}</td><td>{r.so || <em>—</em>}</td>
+                <td>{r.kind === 'change' ? 'Change' : 'Missing label'}</td><td>{r.kind === 'change' ? r.note : <em>a label file</em>}</td>
+                {status === 'open' && <td title="The request is done when the item code has this many label files">has <b>{r.files_now ?? 0}</b>, needs <b>{r.expected}</b></td>}<td>{r.so || <em>—</em>}</td>
                 <td>{r.requested_by_name}</td><td>{when(r.created_at)}</td>
                 {status === 'solved' ? (
                   <><td>{when(r.solved_at)}</td><td className="path" title={r.file_url ?? ''}>{r.kind === 'change' ? <em>done</em> : <><b>{r.file_name}</b><br />{r.file_url}</>}</td></>
@@ -73,7 +75,7 @@ export default function Requests({ me }: { me: Me }) {
                 )}
               </tr>
             ))}
-            {!data.items.length && <tr><td colSpan={9} className="muted">{status === 'open' ? 'No open requests.' : 'Nothing solved yet.'}</td></tr>}
+            {!data.items.length && <tr><td colSpan={10} className="muted">{status === 'open' ? 'No open requests.' : 'Nothing solved yet.'}</td></tr>}
           </tbody>
         </table>
       )}

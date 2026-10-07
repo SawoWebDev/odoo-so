@@ -115,6 +115,10 @@ def ensure_schema(settings: Settings) -> None:
         with engine.begin() as conn:
             if "kind" not in have:
                 conn.execute(text("ALTER TABLE label_request ADD COLUMN kind VARCHAR(16) DEFAULT 'missing' NOT NULL"))
+            if "expected" not in have:
+                conn.execute(text("ALTER TABLE label_request ADD COLUMN expected INTEGER DEFAULT 0 NOT NULL"))
+            if "baseline" not in have:
+                conn.execute(text("ALTER TABLE label_request ADD COLUMN baseline INTEGER DEFAULT 0 NOT NULL"))
             if "note" not in have:
                 conn.execute(text("ALTER TABLE label_request ADD COLUMN note VARCHAR(1000) DEFAULT '' NOT NULL"))
     if "label_file" in insp.get_table_names() and "url" not in {c["name"] for c in insp.get_columns("label_file")}:

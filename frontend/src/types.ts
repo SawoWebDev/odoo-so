@@ -11,10 +11,16 @@ export interface LabelFile { id: number; name: string; folder: string; location_
 /** A request for a missing label file (open until a file for that item code shows up in the Label files list). */
 export interface LineRequest { id: number; created_at: string | null; requested_by_name: string }
 
-/** An open request to change an existing label file (what was asked is in `note`). */
-export interface LineChange { id: number; note: string; created_at: string | null; requested_by_name: string }
+/** An open label request for an item code. It is done when the code has `expected` label files (it has `files_now`). */
+export interface LineReq {
+  id: number; kind: 'missing' | 'change'; note: string; created_at: string | null; requested_by_name: string
+  expected: number; files_now: number
+}
 
-export interface LinePdf { code: string; files: LabelFile[]; selected: number | null; request: LineRequest | null; changes: LineChange[] }
+export interface LinePdf {
+  code: string; files: LabelFile[]; selected: number | null; request: LineRequest | null
+  file_count: number; requests: LineReq[]
+}
 
 export interface Row {
   row_id: string
@@ -65,6 +71,7 @@ export interface LabelSearch { total: number; page: number; size: number; items:
 
 export interface LabelRequestRow {
   id: number; code: string; name: string; so: string; status: 'open' | 'solved'; kind: 'missing' | 'change'; note: string
+  expected: number; files_now?: number
   requested_by: number; requested_by_name: string; created_at: string | null; solved_at: string | null
   file_id: number | null; file_name: string | null; file_url: string | null
 }

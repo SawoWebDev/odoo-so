@@ -6,7 +6,7 @@ let nextId = 100
 const file = (folder: string, name = 'X.pdf'): LabelFile => ({ id: nextId++, name, folder, location_id: 1 })
 const row = (id: number, over: Partial<Row> = {}, files: LabelFile[] = [file('Box')]): Row => ({
   row_id: `lines:${id}`, label: `L${id}`, line_id: id, state: '', fields: {}, disabled: false, disabled_reason: '',
-  disabled_kind: '', pdf: { code: `C${id}`, files, selected: files[0]?.id ?? null, request: null, changes: [] }, ...over,
+  disabled_kind: '', pdf: { code: `C${id}`, files, selected: files[0]?.id ?? null, request: null, file_count: files.length, requests: [] }, ...over,
 })
 const resolved = (rows: Row[]): Resolved => ({
   so: 'S1', fetched_at: '', groups: [{ id: 'header', label: 'Sales Order', status: 'ok', message: '', rows: [] },

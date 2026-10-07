@@ -144,3 +144,20 @@ fieldset.cfg label input, fieldset.cfg label select, fieldset.cfg label textarea
 .chgform { display: flex; flex-direction: column; gap: 6px; flex-basis: 100%; min-width: 280px; }
 .chgform textarea { width: 100%; font-size: 13px; }
 .chgbtns { display: flex; gap: 6px; justify-content: flex-end; }
+
+/* Requests column: the count (click for the list) and the Request button */
+.reqhead { text-align: right; white-space: nowrap; }
+.reqtd { text-align: right; white-space: nowrap; width: 1%; }
+.reqcol { display: inline-flex; align-items: center; gap: 8px; position: relative; }
+button.reqnum, .reqnum.static { min-width: 22px; height: 22px; padding: 0 6px; border-radius: 11px; border: 1px solid #1d4ed8; background: #dbeafe;
+  color: #1d4ed8; font-weight: 700; font-size: 12px; line-height: 1; cursor: pointer; }
+.reqnum.static { display: inline-flex; align-items: center; justify-content: center; margin-left: 6px; cursor: default; }
+button.reqnum:hover { background: #1d4ed8; color: #fff; }
+.reqpop { position: fixed; z-index: 50; width: 340px; max-height: 330px; overflow: auto; text-align: left; white-space: normal; background: #fff;
+  border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 8px 28px rgba(15, 23, 42, .22); padding: 12px; color: var(--ink); font-weight: 400; }
+.reqpop-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; margin-bottom: 8px; }
+.reqitem { border-top: 1px solid var(--line); padding: 7px 0; display: flex; flex-direction: column; gap: 2px; font-size: 13px; }
+.reqitem small { color: var(--muted); }
+.reqitem small.wait { color: #b45309; }
+.reqform { display: flex; flex-direction: column; gap: 6px; border-top: 1px solid var(--line); padding-top: 10px; margin-top: 6px; }
+.reqform textarea { width: 100%; font-size: 13px; }

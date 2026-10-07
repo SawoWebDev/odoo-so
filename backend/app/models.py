@@ -73,6 +73,10 @@ class LabelRequest(Base):
     status: Mapped[str] = mapped_column(String(16), default="open", index=True)  # open | solved
     kind: Mapped[str] = mapped_column(String(16), default="missing", index=True)  # missing (no file) | change (file exists)
     note: Mapped[str] = mapped_column(String(1000), default="")  # what was asked for (change requests)
+    # How many label files the item code must have before this request is done: the count when it was asked, plus the
+    # requests already waiting ahead of it, plus one. 0 = an old request without a count.
+    expected: Mapped[int] = mapped_column(Integer, default=0)
+    baseline: Mapped[int] = mapped_column(Integer, default=0)  # label files the code had when it was asked
     solved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     file_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
     file_name: Mapped[str | None] = mapped_column(String(512), nullable=True)

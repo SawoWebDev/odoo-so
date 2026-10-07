@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { ApiError, api } from '../api'
 import { PAGE_SIZES, type PageInfo, loadPageSize, pageInfo, savePageSize } from '../paging'
 import { type Choice, type Picked, canTick, toggle } from '../selection'
@@ -62,78 +62,16 @@ function Pager({ info, selected, onPage, onSize }: {
   )
 }
 
-/** The PDF(s) found for the line's item code. */
-function RequestCell({ row, so, onChanged }: { row: Row; so: string; onChanged: () => void }) {
-  const [busy, setBusy] = useState(false)
-  const [err, setErr] = useState('')
-  const asked = row.pdf?.request
-  if (asked) {
-    const when = asked.created_at ? new Date(asked.created_at).toLocaleString() : ''
-    return <span className="requested-txt" title={`Requested by ${asked.requested_by_name}${when ? ` on ${when}` : ''}. It closes by itself when the file is added to Label files.`}>Label requested</span>
-  }
-  const send = async () => {
-    setBusy(true); setErr('')
-    try {
-      await api('/label-requests', { method: 'POST', json: { code: row.pdf?.code ?? '', name: row.fields['line.product.name']?.display ?? '', so } })
-      onChanged()
-    } catch (e) { setErr(e instanceof ApiError ? e.message : String(e)) } finally { setBusy(false) }
-  }
-  return (
-    <span className="reqcell">
-      <span className="nopdf">No label file</span>
-      <button className="reqbtn" onClick={send} disabled={busy} title="Ask for this label file to be made or uploaded">{busy ? 'Requesting…' : 'Request'}</button>
-      {err && <small className="error">{err}</small>}
-    </span>
-  )
-}
-
-/** For a line that HAS a label file: ask for something to be changed. The text says what; it goes to the Requests tab and email. */
-function ChangeRequest({ row, so, onChanged }: { row: Row; so: string; onChanged: () => void }) {
-  const [open, setOpen] = useState(false)
-  const [note, setNote] = useState('')
-  const [busy, setBusy] = useState(false)
-  const [err, setErr] = useState('')
-  const asked = row.pdf?.changes ?? []
-  const send = async () => {
-    setBusy(true); setErr('')
-    try {
-      await api('/label-requests', { method: 'POST', json: { code: row.pdf?.code ?? '', name: row.fields['line.product.name']?.display ?? '', so, kind: 'change', note } })
-      setNote(''); setOpen(false); onChanged()
-    } catch (e) { setErr(e instanceof ApiError ? e.message : String(e)) } finally { setBusy(false) }
-  }
-  return (
-    <span className="chgcell">
-      {asked.length > 0 && (
-        <span className="requested-txt" title={asked.map((c) => `• ${c.note} (${c.requested_by_name})`).join('\n')}>
-          Requested{asked.length > 1 ? ` ×${asked.length}` : ''}
-        </span>
-      )}
-      <button className="reqbtn" onClick={() => setOpen(!open)} title="Ask for this label to be changed or redone">Request</button>
-      {open && (
-        <span className="chgform">
-          <textarea rows={2} value={note} onChange={(e) => setNote(e.target.value)} autoFocus maxLength={1000}
-            placeholder="What do you need? e.g. change the artwork, fix the barcode, new size…" />
-          <span className="chgbtns">
-            <button className="primary" onClick={send} disabled={busy || !note.trim()}>{busy ? 'Sending…' : 'Send request'}</button>
-            <button onClick={() => { setOpen(false); setErr('') }} disabled={busy}>Cancel</button>
-          </span>
-          {err && <small className="error">{err}</small>}
-        </span>
-      )}
-    </span>
-  )
-}
-
-function LabelCell({ row, so, onChanged, choice, setChoice }: { row: Row; so: string; onChanged: () => void; choice: Choice; setChoice: (c: Choice) => void }) {
+/** The label file(s) found for the line's item code. */
+function LabelCell({ row, choice, setChoice }: { row: Row; choice: Choice; setChoice: (c: Choice) => void }) {
   const pdf = row.pdf
-  if (!pdf || pdf.files.length === 0) return <RequestCell row={row} so={so} onChanged={onChanged} />
+  if (!pdf || pdf.files.length === 0) return <span className="nopdf">No label file</span>
   const id = row.line_id as number
   const current = choice[id] ?? pdf.selected ?? pdf.files[0].id
   const f = pdf.files.find((x) => x.id === current) ?? pdf.files[0]
   const where = f.folder.split('/').slice(-2).join(' / ')
   return (
     <span className="pdfcell">
-      <span className="pdfpick">
       {pdf.files.length > 1 ? (
         <select value={current} onChange={(e) => setChoice({ ...choice, [id]: Number(e.target.value) })} title={`${pdf.files.length} label files for ${pdf.code}`}>
           {pdf.files.map((x) => <option key={x.id} value={x.id}>{x.folder.split('/').slice(-2).join(' / ')} · {x.name}</option>)}
@@ -141,8 +79,87 @@ function LabelCell({ row, so, onChanged, choice, setChoice }: { row: Row; so: st
       ) : (
         <span className="pdfname" title={`${f.folder}/${f.name}`}>{where && <small>{where} / </small>}{f.name}</span>
       )}
-      </span>
-      <ChangeRequest row={row} so={so} onChanged={onChanged} />
+    </span>
+  )
+}
+
+const stamp = (iso: string | null) => (iso ? new Date(iso).toLocaleString() : '')
+
+/** The Requests column: the number of open requests for the line's item code (click it to read them) and a button to add one.
+ *  A request is pending until the item code has `expected` label files; it then closes by itself. */
+function RequestsCell({ row, so, onChanged }: { row: Row; so: string; onChanged: () => void }) {
+  const pdf = row.pdf
+  const list = pdf?.requests ?? []
+  const hasFile = (pdf?.files.length ?? 0) > 0
+  const missingAsked = !hasFile && !!pdf?.request
+  const [open, setOpen] = useState(false)
+  const [at, setAt] = useState<{ top?: number; bottom?: number; right: number }>({ right: 0 })
+  const [note, setNote] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState('')
+  const anchor = useRef<HTMLSpanElement>(null)
+  const pop = useRef<HTMLDivElement>(null)
+
+  const toggleOpen = () => {
+    if (!open && anchor.current) {
+      const r = anchor.current.getBoundingClientRect()
+      const right = Math.max(8, window.innerWidth - r.right)
+      setAt(r.bottom + 340 > window.innerHeight ? { bottom: window.innerHeight - r.top + 6, right } : { top: r.bottom + 6, right })
+    }
+    setOpen(!open); setErr('')
+  }
+  useEffect(() => {
+    if (!open) return
+    const away = (e: MouseEvent) => { if (!pop.current?.contains(e.target as Node) && !anchor.current?.contains(e.target as Node)) setOpen(false) }
+    const key = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false) }
+    const close = () => setOpen(false)
+    document.addEventListener('mousedown', away); document.addEventListener('keydown', key)
+    window.addEventListener('scroll', close, true); window.addEventListener('resize', close)
+    return () => {
+      document.removeEventListener('mousedown', away); document.removeEventListener('keydown', key)
+      window.removeEventListener('scroll', close, true); window.removeEventListener('resize', close)
+    }
+  }, [open])
+
+  const send = async () => {
+    setBusy(true); setErr('')
+    try {
+      await api('/label-requests', { method: 'POST', json: {
+        code: pdf?.code ?? '', name: row.fields['line.product.name']?.display ?? '', so,
+        kind: hasFile ? 'change' : 'missing', note: hasFile ? note : '' } })
+      setNote(''); setOpen(false); onChanged()
+    } catch (e) { setErr(e instanceof ApiError ? e.message : String(e)) } finally { setBusy(false) }
+  }
+
+  return (
+    <span className="reqcol" ref={anchor}>
+      {list.length > 0 && (
+        <button className="reqnum" onClick={toggleOpen} title={`${list.length} open request${list.length > 1 ? 's' : ''}: click to see them`}>{list.length}</button>
+      )}
+      {!missingAsked && <button className="reqbtn" onClick={toggleOpen} title={hasFile ? 'Ask for another or a changed label file' : 'Ask for this label file to be made or uploaded'}>Request</button>}
+      {open && (
+        <div className="reqpop" ref={pop} style={{ top: at.top, bottom: at.bottom, right: at.right }} role="dialog" aria-label={`Requests for ${pdf?.code}`}>
+          <div className="reqpop-head"><b>Requests for {pdf?.code}</b><small>Label files now: {pdf?.file_count ?? 0}</small></div>
+          {list.length === 0 && <p className="muted small">No requests yet.</p>}
+          {list.map((q) => (
+            <div key={q.id} className="reqitem">
+              <div><b>{q.kind === 'change' ? 'Change' : 'Missing label'}</b>{q.note && <> &mdash; {q.note}</>}</div>
+              <small>{q.requested_by_name}{stamp(q.created_at) && ` · ${stamp(q.created_at)}`}</small>
+              <small className="wait">Pending: {q.files_now} of {q.expected} label files</small>
+            </div>
+          ))}
+          {hasFile ? (
+            <div className="reqform">
+              <textarea rows={2} value={note} onChange={(e) => setNote(e.target.value)} maxLength={1000} autoFocus
+                placeholder="What do you need? e.g. a version without logo, a new size…" />
+              <button className="primary" onClick={send} disabled={busy || !note.trim()}>{busy ? 'Sending…' : 'Send request'}</button>
+            </div>
+          ) : missingAsked ? null : (
+            <div className="reqform"><button className="primary" onClick={send} disabled={busy}>{busy ? 'Requesting…' : 'Request this label file'}</button></div>
+          )}
+          {err && <small className="error">{err}</small>}
+        </div>
+      )}
     </span>
   )
 }
@@ -159,6 +176,7 @@ function LinesTable({ group, so, onChanged, picked, setPicked, choice, setChoice
     <Pager info={info} selected={picked.length} onPage={setPage} onSize={(n) => { setSize(n); savePageSize(n); setPage(1) }} />
   )
   const head = group.rows[0]?.fields
+  const totalReq = group.rows.reduce((n, r) => n + (r.pdf?.requests.length ?? 0), 0)
   return (
     <>
       {pager}
@@ -169,6 +187,7 @@ function LinesTable({ group, so, onChanged, picked, setPicked, choice, setChoice
               <th className="rowcheck" />
               {COLUMNS.map((k) => <th key={k}>{head?.[k]?.label ?? k}</th>)}
               <th>Label file</th>
+              <th className="reqhead" title="Open label requests for each item code">Requests{totalReq > 0 && <span className="reqnum static">{totalReq}</span>}</th>
             </tr>
           </thead>
           <tbody>
@@ -190,7 +209,8 @@ function LinesTable({ group, so, onChanged, picked, setPicked, choice, setChoice
                       </td>
                     )
                   })}
-                  <td><LabelCell row={r} so={so} onChanged={onChanged} choice={choice} setChoice={setChoice} /></td>
+                  <td><LabelCell row={r} choice={choice} setChoice={setChoice} /></td>
+                  <td className="reqtd"><RequestsCell row={r} so={so} onChanged={onChanged} /></td>
                 </tr>
               )
             })}

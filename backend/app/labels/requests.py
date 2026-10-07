@@ -1,16 +1,21 @@
 """Label requests, two kinds:
 
   missing  the order line has no label file, so someone asks for it to be made / uploaded. One open request per item
-           code (everybody sees it as already requested). As soon as a label file for that code is saved in the Label
-           files list, the request is solved and closed: it leaves the open list and keeps the link of the file.
-  change   the line HAS a label file but someone wants something changed or redone; the text says what. Several can be
-           open for a code. They are closed by hand ("Done") once the work is finished."""
+           code (everybody sees it as already requested).
+  change   the line HAS a label file but someone wants another one or a new version; the text says what. Several can be
+           open for a code.
+
+How a request is finished: it counts the label files of its item code. A request asked when the code has 3 files waits
+for a 4th; a second request waiting at the same time needs a 5th. As soon as the saved list (Label files) holds that many
+files for the code, the request is solved and closed: it leaves the open list and keeps the link of the newest file.
+A change request can also be closed by hand ("Done")."""
 from __future__ import annotations
 
 from typing import Literal
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from pydantic import BaseModel, Field
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from ..db import get_db
@@ -29,11 +34,20 @@ class RequestIn(BaseModel):
     note: str = Field(default="", max_length=1000)  # required for a change request: what is needed
 
 
-def request_json(r: LabelRequest) -> dict:
+def file_counts(db: Session) -> dict[str, int]:
+    """How many usable label files each item code has in the saved list."""
+    return dict(db.query(LabelFile.code_key, func.count()).filter(LabelFile.status == "ok").group_by(LabelFile.code_key).all())
+
+
+def request_json(r: LabelRequest, files_now: int | None = None) -> dict:
     iso = lambda d: d.isoformat() if d else None  # noqa: E731
-    return {"id": r.id, "code": r.item_code, "name": r.product_name, "so": r.so_name, "status": r.status,
-            "kind": r.kind, "note": r.note, "requested_by": r.requested_by, "requested_by_name": r.requested_by_name, "created_at": iso(r.created_at),
-            "solved_at": iso(r.solved_at), "file_id": r.file_id, "file_name": r.file_name, "file_url": r.file_url}
+    out = {"id": r.id, "code": r.item_code, "name": r.product_name, "so": r.so_name, "status": r.status,
+           "kind": r.kind, "note": r.note, "requested_by": r.requested_by, "requested_by_name": r.requested_by_name,
+           "created_at": iso(r.created_at), "solved_at": iso(r.solved_at), "file_id": r.file_id, "file_name": r.file_name,
+           "file_url": r.file_url, "expected": r.expected or (1 if r.kind == "missing" else 0), "baseline": r.baseline}
+    if files_now is not None:
+        out["files_now"] = files_now
+    return out
 
 
 def open_by_code(db: Session) -> dict[str, LabelRequest]:
@@ -41,26 +55,29 @@ def open_by_code(db: Session) -> dict[str, LabelRequest]:
     return {r.code_key: r for r in db.query(LabelRequest).filter(LabelRequest.status == "open", LabelRequest.kind == "missing")}
 
 
-def open_changes_by_code(db: Session) -> dict[str, list[dict]]:
-    """Open 'change' requests by item code (what is shown next to a line that has a label file)."""
+def open_all_by_code(db: Session) -> dict[str, list[dict]]:
+    """Every open request (both kinds) by item code, oldest first: what the Requests column of an order line shows."""
+    counts = file_counts(db)
     out: dict[str, list[dict]] = {}
-    for r in (db.query(LabelRequest).filter(LabelRequest.status == "open", LabelRequest.kind == "change")
-              .order_by(LabelRequest.id)):
-        out.setdefault(r.code_key, []).append({"id": r.id, "note": r.note, "requested_by_name": r.requested_by_name,
-                                               "created_at": request_json(r)["created_at"]})
+    for r in db.query(LabelRequest).filter(LabelRequest.status == "open").order_by(LabelRequest.id):
+        out.setdefault(r.code_key, []).append(request_json(r, counts.get(r.code_key, 0)))
     return out
 
 
 def resolve_matching(db: Session) -> int:
-    """Close every open request for which a usable label file now exists (exact name first, then variants)."""
+    """Close every open request whose label count has been reached (see the module text). Returns how many."""
+    counts = file_counts(db)
     solved = 0
-    for r in db.query(LabelRequest).filter(LabelRequest.status == "open", LabelRequest.kind == "missing").all():
+    for r in db.query(LabelRequest).filter(LabelRequest.status == "open").order_by(LabelRequest.id).all():
+        need = r.expected or (1 if r.kind == "missing" else 0)  # old change requests have no count: closed by hand
+        if need <= 0 or counts.get(r.code_key, 0) < need:
+            continue
         f = (db.query(LabelFile).filter(LabelFile.code_key == r.code_key, LabelFile.status == "ok")
-             .order_by(LabelFile.exact.desc(), LabelFile.id).first())
+             .order_by(LabelFile.first_seen.desc(), LabelFile.id.desc()).first())
+        r.status, r.solved_at = "solved", utcnow()
         if f:
-            r.status, r.solved_at = "solved", utcnow()
             r.file_id, r.file_name, r.file_url = f.id, f.name, f.url or f"{f.folder}/{f.name}"
-            solved += 1
+        solved += 1
     if solved:
         db.commit()
     return solved
@@ -68,56 +85,60 @@ def resolve_matching(db: Session) -> int:
 
 @router.post("")
 def create(body: RequestIn, background: BackgroundTasks, user: CurrentUser = Depends(current_user), db: Session = Depends(get_db)):
-    """Ask for the label file of an item code. Asking again for a code that is already requested changes nothing."""
+    """Ask for a label file (missing) or for another / changed one (change). Asking again for a code that is already
+    requested as missing, or repeating the same change text, changes nothing."""
     code = body.code.strip()
     key = norm(code)
     if not key:
         raise HTTPException(422, "Enter the item code.")
-    has_file = db.query(LabelFile).filter(LabelFile.code_key == key, LabelFile.status == "ok").first() is not None
+    resolve_matching(db)
+    have = file_counts(db).get(key, 0)
     note = " ".join(body.note.split())
     if body.kind == "change":
-        if not has_file:
+        if not have:
             raise HTTPException(409, f"There is no label file for {code} yet: request the missing label instead.")
         if not note:
-            raise HTTPException(422, "Write what you need (for example: change the artwork, fix the barcode).")
+            raise HTTPException(422, "Write what you need (for example: a version without logo, a new size).")
         existing = (db.query(LabelRequest).filter(LabelRequest.code_key == key, LabelRequest.status == "open",
                                                   LabelRequest.kind == "change", LabelRequest.requested_by == user.uid,
                                                   LabelRequest.note == note).first())
     else:
-        if has_file:
-            resolve_matching(db)
+        if have:
             raise HTTPException(409, f"A label file for {code} already exists.")
         existing = db.query(LabelRequest).filter(LabelRequest.code_key == key, LabelRequest.status == "open",
                                                  LabelRequest.kind == "missing").first()
     if existing:
-        return {"request": request_json(existing), "existing": True}
+        return {"request": request_json(existing, have), "existing": True}
+    waiting = db.query(LabelRequest).filter(LabelRequest.code_key == key, LabelRequest.status == "open").count()
     r = LabelRequest(code_key=key, item_code=code, product_name=body.name.strip(), so_name=body.so.strip(),
-                     kind=body.kind, note=note if body.kind == "change" else "",
+                     kind=body.kind, note=note if body.kind == "change" else "", baseline=have,
+                     expected=have + waiting + 1,  # one more file than there is now, plus those already asked for
                      requested_by=user.uid, requested_by_name=user.name or user.login)
     db.add(r)
     db.commit()
     audit(db, user.uid, "label_request" if body.kind == "missing" else "label_change", body.so.strip(), code[:200])
     from .. import mailer
 
-    background.add_task(mailer.notify_new_request, request_json(r))  # email the receivers (if set up on the Settings tab)
-    return {"request": request_json(r), "existing": False}
+    background.add_task(mailer.notify_new_request, request_json(r, have))  # email the receivers (if set up on Settings)
+    return {"request": request_json(r, have), "existing": False}
 
 
 @router.get("")
 def listing(status: str = "open", user: CurrentUser = Depends(current_user), db: Session = Depends(get_db)):
     """The requests (open, solved or all). Solves what can be solved first, so the list is never stale."""
     resolve_matching(db)
+    counts = file_counts(db)
     q = db.query(LabelRequest)
     if status in ("open", "solved"):
         q = q.filter(LabelRequest.status == status)
     rows = q.order_by(LabelRequest.id.desc()).limit(1000).all()
-    counts = {s: db.query(LabelRequest).filter(LabelRequest.status == s).count() for s in ("open", "solved")}
-    return {"items": [request_json(r) for r in rows], "counts": counts}
+    totals = {s: db.query(LabelRequest).filter(LabelRequest.status == s).count() for s in ("open", "solved")}
+    return {"items": [request_json(r, counts.get(r.code_key, 0)) for r in rows], "counts": totals}
 
 
 @router.post("/{request_id}/done")
 def done(request_id: int, user: CurrentUser = Depends(current_user), db: Session = Depends(get_db)):
-    """Close a change request once the work is finished. The person who asked, or anyone who can print / admin."""
+    """Close a change request by hand once the work is finished. The person who asked, or anyone who can print / admin."""
     r = db.get(LabelRequest, request_id)
     if r is None:
         raise HTTPException(404, "Unknown request")
