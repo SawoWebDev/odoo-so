@@ -44,9 +44,10 @@ export default function Labels({ me }: { me: Me }) {
     if (bad.length) setError(bad.map((x) => `${x.url} — ${x.error}`).join('\n'))
     setUrl(bad.map((x) => x.url).join('\n')); setPage(1); await refresh(1)  // failed links stay in the box to fix
   })
-  const fetchNew = (id: number) => run(`fetch${id}`, async () => {
-    const r = await api<{ result: { added: number; now_missing: number; restored: number } }>(`/labels/locations/${id}/fetch`, { method: 'POST' })
-    setMsg(`Folder read: ${r.result.added} new file(s) saved, ${r.result.now_missing} not found any more, ${r.result.restored} found again.`)
+  const fetchNew = (id: number, link: string) => run(`fetch${id}`, async () => {
+    const r = await api<{ result: { files: number; added: number; now_missing: number; restored: number } }>(`/labels/locations/${id}/fetch`, { method: 'POST' })
+    const name = decodeURIComponent(link.replace(/\/+$/, '').split('/').pop() ?? link)
+    setMsg(`Scanned ${name} and all its sub-folders: ${r.result.files.toLocaleString()} file(s) found, ${r.result.added} new saved, ${r.result.restored} found again, ${r.result.now_missing} not found. Files already saved were skipped.`)
     await refresh()
   })
   const remove = (id: number, folder: string) => {
@@ -98,7 +99,7 @@ export default function Labels({ me }: { me: Me }) {
                 <td className={l.missing ? 'redtext' : ''}>{l.missing}</td>
                 <td>{when(l.last_fetched_at)}</td><td>{when(l.last_checked_at)}</td>
                 <td className="nowrap">
-                  {canCheck && <button disabled={!!busy} onClick={() => fetchNew(l.id)} title="Read the folder and all its sub-folders again: save every PDF and image found">{busy === `fetch${l.id}` ? 'Reading…' : 'Read folder'}</button>}{' '}
+                  {canCheck && <button disabled={!!busy} onClick={() => fetchNew(l.id, l.url)} title="Scan this folder and all its sub-folders again: save every new PDF and image, flag the ones that are gone">{busy === `fetch${l.id}` ? 'Scanning…' : '↻ Rescan'}</button>}{' '}
                   {admin && <button className="link" disabled={!!busy} onClick={() => remove(l.id, l.folder)}>Remove</button>}
                 </td>
               </tr>
@@ -112,7 +113,7 @@ export default function Labels({ me }: { me: Me }) {
         <button onClick={rescan} disabled={!!busy || !canCheck || !st?.files}>{busy === 'rescan' ? 'Checking…' : '↻ Rescan all folders'}</button>
         {st && <span className="muted small">{st.files.toLocaleString()} saved · {st.codes.toLocaleString()} item codes · <span className={st.missing ? 'redtext' : ''}>{st.missing} not found</span></span>}
       </div>
-      {msg && <p className="ok">{msg}</p>}
+      {msg && <p className="ok" role="status">{msg}</p>}
       {error && <p className="error" style={{ whiteSpace: 'pre-line' }}>{error}</p>}
 
       <form className="searchbar" onSubmit={search}>
