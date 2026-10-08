@@ -47,12 +47,23 @@ def status(user: CurrentUser = Depends(current_user), db: Session = Depends(get_
 def add_location(body: LocationIn, user: CurrentUser = Depends(require_role("template_admin")),
                  settings: Settings = Depends(get_settings), db: Session = Depends(get_db)):
     """Add a folder by URL and save the name and location of every PDF in it."""
-    try:
-        loc, result = store.add_location(db, body.url, user.uid, settings)
-    except LocationError as e:
-        raise HTTPException(422, str(e))
-    audit(db, user.uid, "label_add", detail=f"{loc.folder} files={result['files']}")
-    return {"location": store.location_json(db, loc), "result": result}
+    links = [x.strip() for x in body.url.replace("\r", "\n").split("\n") if x.strip()]
+    if not links:
+        raise HTTPException(422, "Enter the folder location.")
+    results, last = [], None
+    for link in links:  # one bad link does not stop the others
+        try:
+            loc, result = store.add_location(db, link, user.uid, settings)
+        except LocationError as e:
+            results.append({"url": link, "ok": False, "error": str(e)})
+            continue
+        audit(db, user.uid, "label_add", detail=f"{loc.folder} files={result['files']}")
+        results.append({"url": link, "ok": True, "files": result["files"]})
+        last = (loc, result)
+    if last is None:  # nothing could be added: say why (the first reason)
+        raise HTTPException(422, results[0]["error"] if len(results) == 1 else
+                            "No folder was added. " + " | ".join(f"{r['url']}: {r['error']}" for r in results))
+    return {"location": store.location_json(db, last[0]), "result": last[1], "results": results}
 
 
 @router.delete("/locations/{loc_id}")

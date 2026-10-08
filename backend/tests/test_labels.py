@@ -275,3 +275,27 @@ def test_a_database_from_the_previous_version_gets_the_url_column_and_values(api
     db.close()
     login(api, "bob")
     assert all(i["url"] for i in search(api)["items"])
+
+
+def test_several_links_are_added_in_one_go_and_a_bad_one_does_not_stop_the_rest(api):
+    login(api, "alice")
+    from tests.helpers import make_pdf
+    make_pdf(api.mount / "00 MASTERLIST/02 CLIENT/Acme/ACME-1.pdf", "ACME")
+    make_pdf(api.mount / "00 MASTERLIST/03 OTHER/X-1.pdf", "X")
+    api.delete("/api/labels/locations/1")  # the startup folder covers everything below it: start from nothing
+    text = "\n".join([
+        "file://172.16.0.4/Marketing/00%20MASTERLIST/02%20CLIENT/",
+        "file://172.16.0.4/Marketing/00%20MASTERLIST/missing%20folder/",
+        "  ",
+        "//172.16.0.4/Marketing/00 MASTERLIST/03 OTHER",
+        "file://172.16.0.4/Marketing/00%20MASTERLIST/02%20CLIENT/Acme/",  # inside the first one: refused
+    ])
+    r = api.post("/api/labels/locations", json={"url": text})
+    assert r.status_code == 201
+    got = r.json()["results"]
+    assert [x["ok"] for x in got] == [True, False, True, False]
+    assert got[0]["files"] == 1 and "cannot be found" in got[1]["error"] and "already covered" in got[3]["error"]
+    st = api.get("/api/labels/status").json()
+    assert len(st["locations"]) == 2 and st["files"] == 2
+    bad = api.post("/api/labels/locations", json={"url": "file://172.16.0.4/Marketing/nope/\nfile://172.16.0.4/Marketing/nada/"})
+    assert bad.status_code == 422 and "No folder was added" in bad.text

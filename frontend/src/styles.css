@@ -215,3 +215,6 @@ form.regform label { display: flex; flex-direction: column; gap: 3px; font-size:
 form.regform label:first-child { flex: 1 1 320px; }
 form.regform input, form.regform select { font-size: 14px; color: var(--ink); }
 table.grid.users .badge { margin-left: 8px; }
+
+form.addbar { align-items: flex-start; }
+form.addbar textarea { flex: 1; font: inherit; font-size: 14px; padding: 8px 10px; resize: vertical; }

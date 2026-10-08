@@ -14,7 +14,7 @@ from .odoo.connect import Connector, get_connector
 from .security import decrypt_secret, get_session_store
 
 COOKIE = "sid"
-ROLE_RANK = {"viewer": 1, "printer": 2, "template_admin": 3}
+ROLE_RANK = {"viewer": 1, "printer": 2, "template_admin": 3} 
 
 
 @dataclass

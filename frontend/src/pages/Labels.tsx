@@ -36,9 +36,13 @@ export default function Labels({ me }: { me: Me }) {
   const refresh = async (p = page) => { await Promise.all([loadStatus(), loadFiles(q, only, p)]) }
 
   const add = () => run('add', async () => {
-    const r = await api<{ result: { files: number } }>('/labels/locations', { method: 'POST', json: { url } })
-    setMsg(`Folder added: ${r.result.files.toLocaleString()} label file name(s) and locations saved (PDFs and images).`)
-    setUrl(''); setPage(1); await refresh(1)
+    const r = await api<{ results: { url: string; ok: boolean; files?: number; error?: string }[] }>('/labels/locations', { method: 'POST', json: { url } })
+    const ok = r.results.filter((x) => x.ok)
+    const bad = r.results.filter((x) => !x.ok)
+    const files = ok.reduce((n, x) => n + (x.files ?? 0), 0)
+    setMsg(`${ok.length} folder${ok.length === 1 ? '' : 's'} added: ${files.toLocaleString()} label file name(s) and locations saved (PDFs and images).`)
+    if (bad.length) setError(bad.map((x) => `${x.url} — ${x.error}`).join('\n'))
+    setUrl(bad.map((x) => x.url).join('\n')); setPage(1); await refresh(1)  // failed links stay in the box to fix
   })
   const fetchNew = (id: number) => run(`fetch${id}`, async () => {
     const r = await api<{ result: { added: number; now_missing: number; restored: number } }>(`/labels/locations/${id}/fetch`, { method: 'POST' })
@@ -75,9 +79,10 @@ export default function Labels({ me }: { me: Me }) {
       </p>
 
       {admin && (
-        <form className="searchbar" onSubmit={(e) => { e.preventDefault(); add() }}>
-          <input value={url} onChange={(e) => setUrl(e.target.value)} placeholder={EXAMPLE} />
-          <button className="primary" disabled={!!busy || !url.trim()}>{busy === 'add' ? 'Reading folder…' : 'Add folder'}</button>
+        <form className="searchbar addbar" onSubmit={(e) => { e.preventDefault(); add() }}>
+          <textarea value={url} onChange={(e) => setUrl(e.target.value)} placeholder={`${EXAMPLE}\nOne link per line to add several folders at once`}
+            rows={Math.min(6, Math.max(1, url.split('\n').length))} spellCheck={false} />
+          <button className="primary" disabled={!!busy || !url.trim()}>{busy === 'add' ? 'Reading folders…' : 'Add folder(s)'}</button>
         </form>
       )}
       {admin && <p className="muted small">Accepts <code>file://server/share/folder</code>, <code>\\server\share\folder</code> or <code>//server/share/folder</code>; the share must be the one connected to the app.</p>}
@@ -109,7 +114,7 @@ export default function Labels({ me }: { me: Me }) {
         {st && <span className="muted small">{st.files.toLocaleString()} saved · {st.codes.toLocaleString()} item codes · <span className={st.missing ? 'redtext' : ''}>{st.missing} not found</span></span>}
       </div>
       {msg && <p className="ok">{msg}</p>}
-      {error && <p className="error">{error}</p>}
+      {error && <p className="error" style={{ whiteSpace: 'pre-line' }}>{error}</p>}
 
       <form className="searchbar" onSubmit={search}>
         <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Find a label by item code or folder, e.g. 560-BL" />
