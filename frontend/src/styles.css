@@ -218,3 +218,10 @@ table.grid.users .badge { margin-left: 8px; }
 
 form.addbar { align-items: flex-start; }
 form.addbar textarea { flex: 1; font: inherit; font-size: 14px; padding: 8px 10px; resize: vertical; }
+
+.scanreport { border: 1px solid var(--line); border-radius: 8px; padding: 10px 14px; margin: 12px 0; background: #fcfcfe; }
+.scanhead { display: flex; gap: 10px; align-items: baseline; }
+.scanhead button { margin-left: auto; }
+.reportscroll { max-height: 320px; overflow: auto; }
+.reportscroll td.num, .reportscroll th.num { text-align: right; width: 90px; }
+.reportscroll tr.muted td { color: var(--muted); }

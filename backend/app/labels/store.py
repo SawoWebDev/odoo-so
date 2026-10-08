@@ -215,6 +215,42 @@ def fetch(db: Session, loc: LabelLocation, settings: Settings) -> dict:
     return {"requests_solved": solved, "added": added, "restored": restored, "now_missing": gone, "files": len(seen)}
 
 
+def report(db: Session, loc: LabelLocation, settings: Settings) -> dict:
+    """What is on the share right now, folder by folder, against what is saved: proves every sub-folder was covered."""
+    root = _require_reachable(loc)
+    if share.enabled(settings):
+        try:
+            t = share.tree(settings, root)
+        except share.ShareDown as e:
+            raise LocationError(str(e))
+        on_share, dirs, unreadable = {r: s for r, s in t["files"]}, t["dirs"], t["unreadable"]
+    else:
+        on_share, dirs, unreadable = {}, [], []
+        for dirpath, dnames, fnames in os.walk(root, onerror=lambda e: unreadable.append(str(e.filename))):
+            rel = Path(dirpath).relative_to(root).as_posix()
+            if rel != ".":
+                dirs.append(rel)
+            for fn in fnames:
+                if is_label_file(fn):
+                    on_share[f"{rel}/{fn}" if rel != "." else fn] = 0
+    saved = {f.rel_path: f.status for f in db.query(LabelFile).filter(LabelFile.location_id == loc.id)}
+    per: dict[str, list[int]] = {"": [0, 0]}  # folder -> [on share, saved ok]
+    for d in dirs:
+        per.setdefault(d, [0, 0])
+    for r in on_share:
+        d = r.rpartition("/")[0]
+        per.setdefault(d, [0, 0])[0] += 1
+    for r, st in saved.items():
+        if st == "ok":
+            per.setdefault(r.rpartition("/")[0], [0, 0])[1] += 1
+    rows = [{"folder": d or "(top folder)", "on_share": a, "saved": b} for d, (a, b) in sorted(per.items(), key=lambda kv: kv[0].lower())
+            if d or a or b]
+    return {"folders": len(dirs), "empty_folders": sum(1 for d in dirs if per[d] == [0, 0]
+                                                          and not any(k.startswith(d + "/") and v != [0, 0] for k, v in per.items())),
+            "on_share": len(on_share), "saved": sum(1 for v in saved.values() if v == "ok"),
+            "not_saved": sorted(set(on_share) - set(saved))[:50], "unreadable": unreadable[:50], "rows": rows}
+
+
 def check(db: Session, loc: LabelLocation) -> dict:
     """Is every saved file still where it was? Updates each file's status; does not look for new files."""
     root = _require_reachable(loc)
@@ -241,6 +277,7 @@ def check(db: Session, loc: LabelLocation) -> dict:
 
 def add_location(db: Session, url: str, user_uid: int | None, settings: Settings) -> tuple[LabelLocation, dict]:
     folder = resolve_url(url, settings)
+    children = []
     for other in db.query(LabelLocation):
         o = Path(other.folder)
         if o == folder:
@@ -249,12 +286,21 @@ def add_location(db: Session, url: str, user_uid: int | None, settings: Settings
             raise LocationError(f"That folder is already covered by the folder you added earlier ({other.url}): "
                                 "its sub-folders are all included.")
         if o.is_relative_to(folder):
-            raise LocationError(f"That folder contains a folder you added earlier ({other.url}). "
-                                "Remove the earlier one first, then add this one, so no PDF is saved twice.")
+            children.append((other, o.relative_to(folder).as_posix()))
     loc = LabelLocation(url=url.strip(), folder=str(folder), added_by=user_uid)
     db.add(loc)
     db.commit()
-    return loc, fetch(db, loc, settings)
+    for child, prefix in children:  # folders added earlier below this one now belong to it: keep their saved files (ids)
+        for f in db.query(LabelFile).filter(LabelFile.location_id == child.id):
+            f.location_id = loc.id
+            f.rel_path = f"{prefix}/{f.rel_path}"
+            f.folder = f"{prefix}/{f.folder}" if f.folder else prefix
+        db.flush()
+        db.delete(child)
+    db.commit()
+    result = fetch(db, loc, settings)
+    result["absorbed"] = len(children)
+    return loc, result
 
 
 def remove_location(db: Session, loc: LabelLocation) -> None:

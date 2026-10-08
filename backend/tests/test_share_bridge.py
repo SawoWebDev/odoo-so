@@ -65,3 +65,10 @@ def test_the_bridge_refuses_paths_outside_the_share(bridged):
     assert httpx.get(base + "/file", params={"path": "../../etc/passwd"}).status_code == 400
     assert httpx.get(base + "/isdir", params={"path": "a/../.."}).status_code == 400
     assert httpx.post(base + "/file").status_code in (501, 405)  # read-only: no other method exists
+
+
+def test_the_report_through_the_bridge_sees_empty_and_deep_folders(bridged, api):
+    login(api, "bob")
+    (api.labels / "01 SAWO/P8/a/b/c").mkdir(parents=True)
+    r = api.get("/api/labels/locations/1/report").json()
+    assert {"01 SAWO/P8", "01 SAWO/P8/a", "01 SAWO/P8/a/b", "01 SAWO/P8/a/b/c"} <= {x["folder"] for x in r["rows"]} and r["unreadable"] == []

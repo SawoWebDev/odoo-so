@@ -52,27 +52,43 @@ class Bridge:
         return {"file": _s.S_ISREG(st.st_mode), "dir": _s.S_ISDIR(st.st_mode), "size": st.st_size,
                 "mtime": st.st_mtime_ns}
 
-    def list(self, rel: str, exts: tuple[str, ...]) -> list[dict]:
-        """Every file below `rel`, in all sub-folders however deep, whose name ends with one of `exts`."""
+    def tree(self, rel: str, exts: tuple[str, ...]) -> dict:
+        """Every file below `rel`, in all sub-folders however deep, whose name ends with one of `exts`; every folder
+        visited (also empty ones); and the folders that could not be opened. Folder links / junctions are followed once."""
         top = self.path(rel)
-        out: list[dict] = []
+        files: list[dict] = []
+        dirs: list[str] = []
+        unreadable: list[str] = []
+        seen = {os.path.realpath(top)}
         stack = [(top, "")]
         while stack:
             folder, prefix = stack.pop()
+            if prefix:
+                dirs.append(prefix.rstrip("/"))
             try:
                 with os.scandir(folder) as it:
-                    for e in it:
-                        try:
-                            if e.is_dir(follow_symlinks=False):
-                                stack.append((e.path, f"{prefix}{e.name}/"))
-                            elif e.is_file() and (not exts or e.name.lower().endswith(exts)):
-                                out.append({"rel": f"{prefix}{e.name}", "size": e.stat().st_size})
-                        except OSError:
-                            continue
+                    entries = list(it)
             except OSError:
-                continue  # an unreadable folder must not stop the rest
-        out.sort(key=lambda f: f["rel"].lower())
-        return out
+                unreadable.append(prefix.rstrip("/") or ".")  # an unreadable folder must not stop the rest
+                continue
+            for e in entries:
+                try:
+                    if e.is_dir():
+                        real = os.path.realpath(e.path)
+                        if real in seen:  # a link back to a folder already visited
+                            continue
+                        seen.add(real)
+                        stack.append((e.path, f"{prefix}{e.name}/"))
+                    elif e.is_file() and (not exts or e.name.lower().endswith(exts)):
+                        files.append({"rel": f"{prefix}{e.name}", "size": e.stat().st_size})
+                except OSError:
+                    unreadable.append(f"{prefix}{e.name}")
+        files.sort(key=lambda f: f["rel"].lower())
+        dirs.sort(key=str.lower)
+        return {"files": files, "dirs": dirs, "unreadable": sorted(unreadable, key=str.lower)}
+
+    def list(self, rel: str, exts: tuple[str, ...]) -> list[dict]:
+        return self.tree(rel, exts)["files"]
 
 
 def make_handler(bridge: Bridge):
@@ -122,7 +138,7 @@ def make_handler(bridge: Bridge):
                     return self._json(bridge.stat(q.get("path", "")))
                 if u.path == "/list":
                     exts = tuple(x for x in q.get("exts", "").lower().split(",") if x)
-                    return self._json({"files": bridge.list(q.get("path", ""), exts)})
+                    return self._json(bridge.tree(q.get("path", ""), exts))
                 if u.path == "/file":
                     p = bridge.path(q.get("path", ""))
                     if not os.path.isfile(p):

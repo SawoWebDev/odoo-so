@@ -249,15 +249,20 @@ def test_the_url_of_a_saved_file_resolves_back_to_the_same_file(api, env):
         assert resolve_url(i["url"].rsplit("/", 1)[0], st).joinpath(i["name"]).is_file()
 
 
-def test_a_folder_that_overlaps_an_added_one_is_refused_so_no_pdf_is_saved_twice(api):
+def test_a_folder_inside_an_added_one_is_refused_and_a_parent_absorbs_the_folders_below_it(api):
     login(api, "alice")
     sub = "file://172.16.0.4/Marketing/00%20MASTERLIST/01%20PRINTING%20FILES/01%20SAWO/P1/"
     r = api.post("/api/labels/locations", json={"url": sub})
     assert r.status_code == 422 and "already covered" in r.text and "sub-folders are all included" in r.text
+    ids_before = sorted(i["id"] for i in search(api)["items"])
+    make_pdf(api.mount / "00 MASTERLIST/02 CLIENT/Acme/ACME-1.pdf", "A")
     parent = "file://172.16.0.4/Marketing/00%20MASTERLIST/"
-    r = api.post("/api/labels/locations", json={"url": parent})
-    assert r.status_code == 422 and "contains a folder you added earlier" in r.text
-    assert status(api)["files"] == 3
+    r = api.post("/api/labels/locations", json={"url": parent})  # a parent link takes in the folder added earlier
+    assert r.status_code == 201 and r.json()["results"][0]["absorbed"] == 1 and r.json()["result"]["added"] == 1
+    st = status(api)
+    assert len(st["locations"]) == 1 and st["files"] == 4  # the 3 saved ones kept, plus the new one: nothing saved twice
+    assert sorted(i["id"] for i in search(api)["items"] if i["name"] != "ACME-1.pdf") == ids_before  # same records, same ids
+    assert any(i["folder"].startswith("01 PRINTING FILES/01 SAWO") for i in search(api)["items"])
 
 
 def test_a_database_from_the_previous_version_gets_the_url_column_and_values(api, env):
@@ -312,3 +317,18 @@ def test_rescan_covers_every_added_folder_and_skips_one_that_cannot_be_reached(a
     make_pdf(api.labels / "01 SAWO/Q/Q-1.pdf", "Q")
     r = api.post("/api/labels/rescan").json()
     assert [x["added"] for x in r["results"]] == [1, 1] and r["files"] == 3 + 1 + 2
+
+
+def test_the_scan_report_lists_every_sub_folder_empty_ones_too(api):
+    login(api, "bob")
+    (api.labels / "01 SAWO/P7/empty/deeper").mkdir(parents=True)
+    make_pdf(api.labels / "01 SAWO/P7/x/y/Z-1.pdf", "z")
+    r = api.get("/api/labels/locations/1/report").json()
+    rows = {x["folder"]: x for x in r["rows"]}
+    assert r["on_share"] == 4 and r["saved"] == 3 and r["not_saved"] == ["01 SAWO/P7/x/y/Z-1.pdf"]  # found on the share, not saved yet
+    assert {"01 SAWO/P7/empty", "01 SAWO/P7/empty/deeper", "01 SAWO/P7/x", "01 SAWO/P7/x/y"} <= set(rows) and rows["01 SAWO/P7/x/y"]["on_share"] == 1
+    assert r["empty_folders"] == 2 and r["folders"] >= 6
+    api.post("/api/labels/rescan")
+    again = api.get("/api/labels/locations/1/report").json()
+    assert again["not_saved"] == [] and again["saved"] == again["on_share"] == 4
+    assert api.get("/api/labels/locations/99/report").status_code == 404

@@ -58,7 +58,7 @@ def add_location(body: LocationIn, user: CurrentUser = Depends(require_role("tem
             results.append({"url": link, "ok": False, "error": str(e)})
             continue
         audit(db, user.uid, "label_add", detail=f"{loc.folder} files={result['files']}")
-        results.append({"url": link, "ok": True, "files": result["files"]})
+        results.append({"url": link, "ok": True, "files": result["files"], "absorbed": result.get("absorbed", 0)})
         last = (loc, result)
     if last is None:  # nothing could be added: say why (the first reason)
         raise HTTPException(422, results[0]["error"] if len(results) == 1 else
@@ -107,6 +107,17 @@ def rescan(user: CurrentUser = Depends(require_role("printer")), db: Session = D
                         "changed": r["added"] + r["restored"] + r["now_missing"]})
     audit(db, user.uid, "label_rescan", detail=str(results)[:500])
     return {"results": results, **_status(db)}
+
+
+@router.get("/locations/{loc_id}/report")
+def scan_report(loc_id: int, user: CurrentUser = Depends(current_user), db: Session = Depends(get_db),
+                settings: Settings = Depends(get_settings)):
+    """Every sub-folder of a saved folder as it is on the share right now, with the files found there and the files saved."""
+    loc = _loc(db, loc_id)
+    try:
+        return {"id": loc.id, "url": loc.url, **store.report(db, loc, settings)}
+    except LocationError as e:
+        raise HTTPException(409, str(e))
 
 
 @router.get("/search")

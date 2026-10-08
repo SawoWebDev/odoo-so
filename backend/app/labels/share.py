@@ -47,10 +47,16 @@ def is_dir(settings: Settings, folder: str | Path) -> bool:
     return bool(_get(settings, "/isdir", 15, path=rel_of(settings, folder)).json().get("dir"))
 
 
+def tree(settings: Settings, folder: str | Path) -> dict:
+    """{'files': [(rel, size)], 'dirs': [rel], 'unreadable': [rel]}: all depths."""
+    r = _get(settings, "/list", 600, path=rel_of(settings, folder), exts=",".join(LABEL_EXTS)).json()
+    return {"files": [(f["rel"], int(f["size"])) for f in r["files"]], "dirs": r.get("dirs", []),
+            "unreadable": r.get("unreadable", [])}
+
+
 def listing(settings: Settings, folder: str | Path) -> list[tuple[str, int]]:
     """(relative path, size) of every label file below the folder, all depths."""
-    r = _get(settings, "/list", 600, path=rel_of(settings, folder), exts=",".join(LABEL_EXTS))
-    return [(f["rel"], int(f["size"])) for f in r.json()["files"]]
+    return tree(settings, folder)["files"]
 
 
 def local(settings: Settings, root: str | Path, rel: str) -> Path | None:
