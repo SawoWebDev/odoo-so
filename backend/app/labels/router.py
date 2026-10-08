@@ -91,15 +91,21 @@ def fetch_location(loc_id: int, user: CurrentUser = Depends(require_role("printe
 
 
 @router.post("/rescan")
-def rescan(user: CurrentUser = Depends(require_role("printer")), db: Session = Depends(get_db)):
-    """Check that every saved file is still where it was (red = renamed / deleted). Does not look for new files."""
+def rescan(user: CurrentUser = Depends(require_role("printer")), db: Session = Depends(get_db),
+           settings: Settings = Depends(get_settings)):
+    """Scan every saved folder again, all sub-folders at any depth: save every PDF / image found (name, location, URL),
+    and turn files that are gone red (renamed / deleted). A folder that cannot be reached is left unchanged."""
     results = []
     for loc in db.query(LabelLocation).order_by(LabelLocation.id).all():
         try:
-            results.append({"id": loc.id, **store.check(db, loc)})
+            r = store.fetch(db, loc, settings)
         except LocationError as e:
             results.append({"id": loc.id, "error": str(e)})
-    audit(db, user.uid, "label_check", detail=str(results)[:500])
+            continue
+        results.append({"id": loc.id, "added": r["added"], "restored": r["restored"], "now_missing": r["now_missing"],
+                        "files": r["files"], "ok": r["files"], "missing": store.location_json(db, loc)["missing"],
+                        "changed": r["added"] + r["restored"] + r["now_missing"]})
+    audit(db, user.uid, "label_rescan", detail=str(results)[:500])
     return {"results": results, **_status(db)}
 
 

@@ -51,8 +51,8 @@ name and location in its database**. From then on:
 * **Matching, Preview and Print use the saved name and location**: the PDF is fetched from the saved location each time.
 * If a file is **renamed, moved or deleted**, it is **not found** at its saved location: its row turns **red**, lines that
   needed it show the warning colour, and a print that tries to use it stops with a clear message and flags it red.
-* **Rescan** checks every saved file: *is it still where it was?* It updates the colours (a restored file turns normal again) and
-  does not look for new files. If the whole folder cannot be reached (network down) nothing is changed.
+* **Rescan** scans every saved folder again, all sub-folders at any depth: it saves every PDF / image found (name, location, URL), and it updates the colours (a file that is gone turns red, a restored one turns normal again).
+  If the whole folder cannot be reached (network down) nothing is changed.
 * **Read folder** (per folder) reads the folder again and saves *new* PDFs.
 * Red rows have a **🗑 delete icon**: it removes only the saved *record* of a file that is already gone. Files that still exist
   cannot be deleted, and nothing on the share is ever touched. **Remove** forgets a whole folder's saved list.

@@ -54,11 +54,10 @@ export default function Labels({ me }: { me: Me }) {
     run(`rm${id}`, async () => { await api(`/labels/locations/${id}`, { method: 'DELETE' }); setPage(1); await refresh(1) })
   }
   const rescan = () => run('rescan', async () => {
-    const r = await api<{ results: { id: number; ok?: number; missing?: number; changed?: number; error?: string }[] }>('/labels/rescan', { method: 'POST' })
+    const r = await api<{ results: { id: number; files?: number; added?: number; restored?: number; now_missing?: number; missing?: number; error?: string }[] }>('/labels/rescan', { method: 'POST' })
     const bad = r.results.filter((x) => x.error)
-    const checked = r.results.reduce((n, x) => n + (x.ok ?? 0) + (x.missing ?? 0), 0)
-    const gone = r.results.reduce((n, x) => n + (x.missing ?? 0), 0)
-    setMsg(`Checked ${checked.toLocaleString()} saved file(s): ${gone} not found${bad.length ? `; ${bad.length} folder(s) could not be reached and were left unchanged` : ''}.`)
+    const sum = (k: 'files' | 'added' | 'restored' | 'missing') => r.results.reduce((n, x) => n + (x[k] ?? 0), 0)
+    setMsg(`Scanned ${r.results.length - bad.length} folder(s) and all their sub-folders: ${sum('files').toLocaleString()} file(s) found, ${sum('added')} new saved, ${sum('restored')} found again, ${sum('missing')} not found${bad.length ? `; ${bad.length} folder(s) could not be reached and were left unchanged` : ''}.`)
     if (bad.length) setError(bad.map((x) => x.error).join(' '))
     await refresh()
   })
@@ -110,7 +109,7 @@ export default function Labels({ me }: { me: Me }) {
       )}
 
       <div className="actions">
-        <button onClick={rescan} disabled={!!busy || !canCheck || !st?.files}>{busy === 'rescan' ? 'Checking…' : '↻ Rescan (are the files still there?)'}</button>
+        <button onClick={rescan} disabled={!!busy || !canCheck || !st?.files}>{busy === 'rescan' ? 'Checking…' : '↻ Rescan all folders'}</button>
         {st && <span className="muted small">{st.files.toLocaleString()} saved · {st.codes.toLocaleString()} item codes · <span className={st.missing ? 'redtext' : ''}>{st.missing} not found</span></span>}
       </div>
       {msg && <p className="ok">{msg}</p>}

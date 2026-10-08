@@ -51,7 +51,7 @@ matched against this list, and Preview/Print **fetch the file from the saved loc
 |---|---|---|
 | **Add folder** | Reads the folder and saves every PDF | adds files |
 | **Read folder** | Reads the folder again | adds new PDFs; marks vanished ones *not found*; restores found-again ones |
-| **Rescan** | Checks each saved file: is it still there? | updates *not found* / *OK* only; adds nothing |
+| **Rescan** | Scans every saved folder again, all sub-folders | saves new PDFs / images, updates *not found* / *OK* |
 | **Delete icon** (red rows only) | Removes the record of a file that is gone | removes that record |
 | **Remove** (folder) | Forgets the folder's saved list | removes its records |
 

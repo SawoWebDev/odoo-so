@@ -128,12 +128,12 @@ def test_fetch_saves_new_files_and_flags_removed_ones(api):
     assert search(api, q="NEW-1")["items"][0]["status"] == "missing"
 
 
-def test_rescan_only_checks_saved_files_it_does_not_add_new_ones(api):
+def test_rescan_scans_everything_again_and_saves_new_files_from_any_sub_folder(api):
     login(api, "bob")
-    make_pdf(api.labels / "01 SAWO/Z/NEW-2.pdf", "new")
+    make_pdf(api.labels / "01 SAWO/Z/deep/er/still/NEW-2.pdf", "new")
     r = api.post("/api/labels/rescan").json()
-    assert r["results"][0]["ok"] == 3 and r["results"][0]["missing"] == 0 and r["files"] == 3
-    assert search(api, q="NEW-2")["total"] == 0
+    assert r["results"][0]["added"] == 1 and r["results"][0]["files"] == 4 and r["results"][0]["missing"] == 0 and r["files"] == 4
+    assert search(api, q="NEW-2")["total"] == 1
 
 
 def test_a_renamed_or_deleted_file_turns_missing_and_comes_back_when_restored(api):
@@ -141,13 +141,16 @@ def test_a_renamed_or_deleted_file_turns_missing_and_comes_back_when_restored(ap
     ind = api.labels / "01 SAWO/P1/01 Individual/220-TD.pdf"
     ind.rename(ind.with_name("220-TD-renamed.pdf"))
     r = api.post("/api/labels/rescan").json()
-    assert r["results"][0]["missing"] == 1 and r["missing"] == 1 and r["results"][0]["changed"] == 1
+    assert r["results"][0]["missing"] == 1 and r["missing"] == 1 and r["results"][0]["added"] == 1  # the old name is gone, the new name is found
     missing = search(api, state="missing")["items"]
     assert [m["name"] for m in missing] == ["220-TD.pdf"] and missing[0]["folder"] == "01 SAWO/P1/01 Individual"
     assert search(api)["items"][0]["status"] == "missing"  # red rows are listed first
     ind.with_name("220-TD-renamed.pdf").rename(ind)
     api.post("/api/labels/rescan")
-    assert status(api)["missing"] == 0
+    # the original name is back (normal again); the temporary name that was saved meanwhile is now the one that is gone
+    assert [m["name"] for m in search(api, state="missing")["items"]] == ["220-TD-renamed.pdf"]
+    again = api.post("/api/labels/rescan").json()  # nothing changed: every saved file is skipped, nothing is duplicated
+    assert again["results"][0]["added"] == 0 and again["results"][0]["changed"] == 0 and search(api)["total"] == 4
 
 
 def test_a_network_outage_does_not_turn_the_whole_list_red(api, env):
@@ -299,3 +302,13 @@ def test_several_links_are_added_in_one_go_and_a_bad_one_does_not_stop_the_rest(
     assert len(st["locations"]) == 2 and st["files"] == 2
     bad = api.post("/api/labels/locations", json={"url": "file://172.16.0.4/Marketing/nope/\nfile://172.16.0.4/Marketing/nada/"})
     assert bad.status_code == 422 and "No folder was added" in bad.text
+
+
+def test_rescan_covers_every_added_folder_and_skips_one_that_cannot_be_reached(api):
+    login(api, "alice")
+    make_pdf(api.mount / "00 MASTERLIST/02 CLIENT/Acme/ACME-1.pdf", "A")
+    api.post("/api/labels/locations", json={"url": "file://172.16.0.4/Marketing/00%20MASTERLIST/02%20CLIENT/"})
+    make_pdf(api.mount / "00 MASTERLIST/02 CLIENT/Acme/sub/ACME-2.png".replace(".png", ".pdf"), "B")
+    make_pdf(api.labels / "01 SAWO/Q/Q-1.pdf", "Q")
+    r = api.post("/api/labels/rescan").json()
+    assert [x["added"] for x in r["results"]] == [1, 1] and r["files"] == 3 + 1 + 2
