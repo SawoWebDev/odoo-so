@@ -7,6 +7,7 @@ from fastapi import Depends, FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
+from .activity_router import router as activity_router
 from .auth.router import router as auth_router
 from .config import get_settings
 from .db import Base, SessionLocal, get_engine
@@ -82,3 +83,4 @@ app.include_router(labels_router)
 app.include_router(requests_router)
 app.include_router(print_router)
 app.include_router(settings_router)
+app.include_router(activity_router)

@@ -120,7 +120,7 @@ def create(body: RequestIn, background: BackgroundTasks, user: CurrentUser = Dep
                      requested_by=user.uid, requested_by_name=user.name or user.login)
     db.add(r)
     db.commit()
-    audit(db, user.uid, {"missing": "label_request", "additional": "label_more", "change": "label_change"}[body.kind],
+    audit(db, user, {"missing": "label_request", "additional": "label_more", "change": "label_change"}[body.kind],
           body.so.strip(), code[:200])
     from .. import mailer
 
@@ -155,7 +155,7 @@ def done(request_id: int, user: CurrentUser = Depends(current_user), db: Session
         return {"request": request_json(r)}
     r.status, r.solved_at = "solved", utcnow()
     db.commit()
-    audit(db, user.uid, "label_change_done", r.so_name, r.item_code[:200])
+    audit(db, user, "label_change_done", r.so_name, r.item_code[:200])
     return {"request": request_json(r)}
 
 
@@ -170,5 +170,5 @@ def cancel(request_id: int, user: CurrentUser = Depends(current_user), db: Sessi
     code = r.item_code
     db.delete(r)
     db.commit()
-    audit(db, user.uid, "label_request_del", "", code[:200])
+    audit(db, user, "label_request_del", "", code[:200])
     return {"ok": True}

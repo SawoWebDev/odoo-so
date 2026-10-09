@@ -43,6 +43,7 @@ def decrypt_secret(token: str, settings: Settings | None = None) -> str | None:
 class SessionStore(Protocol):
     def create(self, data: dict, ttl: int) -> str: ...
     def get(self, sid: str, ttl: int) -> dict | None: ...
+    def update(self, sid: str, data: dict, ttl: int) -> None: ...
     def delete(self, sid: str) -> None: ...
 
 
@@ -72,6 +73,11 @@ class MemorySessionStore:
             self._d[sid] = (self.clock() + ttl, data)  # sliding window
             return data
 
+    def update(self, sid: str, data: dict, ttl: int) -> None:
+        with self._lock:
+            if sid in self._d:
+                self._d[sid] = (self.clock() + ttl, data)
+
     def delete(self, sid: str) -> None:
         with self._lock:
             self._d.pop(sid, None)
@@ -95,6 +101,9 @@ class RedisSessionStore:
             return None
         self.r.expire(key, ttl)  # sliding idle window
         return json.loads(raw)
+
+    def update(self, sid: str, data: dict, ttl: int) -> None:
+        self.r.set(f"sess:{sid}", json.dumps(data), ex=ttl, xx=True)  # xx: never revive a session that already expired
 
     def delete(self, sid: str) -> None:
         self.r.delete(f"sess:{sid}")

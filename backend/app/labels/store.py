@@ -130,6 +130,15 @@ def ensure_schema(settings: Settings) -> None:
     if "label_file" in insp.get_table_names() and "url" not in {c["name"] for c in insp.get_columns("label_file")}:
         with engine.begin() as conn:
             conn.execute(text("ALTER TABLE label_file ADD COLUMN url VARCHAR(2048)"))
+    if "app_user" in insp.get_table_names():
+        have = {c["name"] for c in insp.get_columns("app_user")}
+        with engine.begin() as conn:
+            for col in ("custom_name", "custom_email"):
+                if col not in have:
+                    conn.execute(text(f"ALTER TABLE app_user ADD COLUMN {col} VARCHAR(255) DEFAULT '' NOT NULL"))
+    if "audit_event" in insp.get_table_names() and "as_uid" not in {c["name"] for c in insp.get_columns("audit_event")}:
+        with engine.begin() as conn:
+            conn.execute(text("ALTER TABLE audit_event ADD COLUMN as_uid INTEGER"))
 
 
 def backfill_urls(db: Session, settings: Settings) -> int:

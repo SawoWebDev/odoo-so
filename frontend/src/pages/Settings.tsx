@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { ApiError, api } from '../api'
+import Button from '../components/Button'
 
 interface EmailCfg {
   enabled: boolean; host: string; port: number; security: 'starttls' | 'ssl' | 'none'; username: string
@@ -21,7 +22,7 @@ export default function Settings() {
   const load = () => api<EmailCfg>('/settings/email').then(apply).catch((e) => setError(e instanceof ApiError ? e.message : String(e)))
   useEffect(() => { load() }, [])
 
-  if (!cfg) return <div className="panel wide"><h3>Settings</h3>{error ? <p className="error">{error}</p> : <p className="muted">Loading…</p>}</div>
+  if (!cfg) return <div className="panel wide">{error ? <p className="error">{error}</p> : <p className="muted">Loading…</p>}</div>
   const set = <K extends keyof EmailCfg>(k: K, v: EmailCfg[K]) => setCfg({ ...cfg, [k]: v })
 
   const run = async (name: string, fn: () => Promise<void>) => {
@@ -43,7 +44,6 @@ export default function Settings() {
 
   return (
     <div className="panel wide">
-      <h3>Settings</h3>
       <h4>Email for label requests</h4>
       <p className="muted small">
         When someone makes a label request, an email goes from the <b>sender</b> account below to every address under <b>Send to</b>.
@@ -86,9 +86,9 @@ export default function Settings() {
       </fieldset>
 
       <div className="actions">
-        <button className="primary" onClick={save} disabled={!!busy}>{busy === 'save' ? 'Saving…' : 'Save'}</button>
+        <Button variant="primary" onClick={save} disabled={!!busy}>{busy === 'save' ? 'Saving…' : 'Save'}</Button>
         <input value={testTo} onChange={(e) => setTestTo(e.target.value)} placeholder="Test send to (empty = the Send to list)" style={{ maxWidth: 300 }} />
-        <button onClick={test} disabled={!!busy} title="Sends a test email with what is in the form now (no need to save first)">{busy === 'test' ? 'Sending…' : 'Send test email'}</button>
+        <Button onClick={test} disabled={!!busy} title="Sends a test email with what is in the form now (no need to save first)">{busy === 'test' ? 'Sending…' : 'Send test email'}</Button>
       </div>
       {msg && <p className="ok">{msg}</p>}
       {error && <p className="error">{error}</p>}

@@ -51,7 +51,7 @@ def put_email(body: EmailIn, user: CurrentUser = Depends(require_role("template_
     if not cfg["username"]:
         cfg["password_enc"] = ""
     mailer.save(db, cfg)
-    audit(db, user.uid, "settings_email", detail=f"enabled={cfg['enabled']} receivers={len(cfg['receivers'])}")
+    audit(db, user, "settings_email", detail=f"enabled={cfg['enabled']} receivers={len(cfg['receivers'])}")
     return mailer.public(cfg)
 
 
@@ -80,5 +80,5 @@ def test_email(body: TestIn, user: CurrentUser = Depends(require_role("template_
                     "the receivers.", to, settings)
     except mailer.MailError as e:
         raise HTTPException(502, str(e))
-    audit(db, user.uid, "settings_email_test", detail=f"to={len(to)}")
+    audit(db, user, "settings_email_test", detail=f"to={len(to)}")
     return {"ok": True, "sent_to": to}

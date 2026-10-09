@@ -22,6 +22,18 @@ class AppUser(Base):
     email: Mapped[str] = mapped_column(String(255), default="")  # from the person's Odoo profile, refreshed at each sign-in
     app_role: Mapped[str] = mapped_column(String(32), default="viewer")  # viewer | printer | template_admin
     last_login: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # Set by an admin on the Roles screen; sign-in never overwrites them. Empty = use what Odoo says.
+    # Never used to decide rights: the main-admin check only trusts the Odoo login and email.
+    custom_name: Mapped[str] = mapped_column(String(255), default="")
+    custom_email: Mapped[str] = mapped_column(String(255), default="")
+
+    @property
+    def shown_name(self) -> str:
+        return self.custom_name or self.display_name or self.odoo_login
+
+    @property
+    def shown_email(self) -> str:
+        return self.custom_email or self.email or (self.odoo_login if "@" in self.odoo_login else "")
 
 
 class RoleGrant(Base):
@@ -123,6 +135,7 @@ class AuditEvent(Base):
     __tablename__ = "audit_event"
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     user_uid: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
+    as_uid: Mapped[int | None] = mapped_column(Integer, nullable=True)  # an admin viewing the app as this person
     event: Mapped[str] = mapped_column(String(32), index=True)  # login | search | print | reprint | label_*
     so_name: Mapped[str] = mapped_column(String(64), default="")
     detail: Mapped[str] = mapped_column(String(512), default="")

@@ -1,19 +1,48 @@
 import { useEffect, useRef, useState } from 'react'
 import { ApiError, api } from '../api'
 import { PAGE_SIZES, type PageInfo, loadPageSize, pageInfo, savePageSize } from '../paging'
+import Button from './Button'
+import { ChevronLeftIcon, EyeIcon, FlagIcon } from './icons'
 import { type Choice, type Picked, canTick, filterRows, toggle } from '../selection'
-import { KIND_LABEL, type Group, type Resolved, type Row } from '../types'
+import { KIND_LABEL, type Group, type PrintItem, type Resolved, type Row } from '../types'
 
 const COLUMNS = ['line.product.code', 'line.product.name', 'line.qty']
 
 /** The order header is ONE record (an SO number is unique), so it is shown as a labelled form, not as a table. */
 function HeaderCard({ row, refs, active, onPick }: { row: Row; refs: Row[]; active: string | null; onPick: (id: string) => void }) {
+  // Once a reference is chosen the details are rarely needed again, so the card folds to one line to give the lines room.
+  const [expanded, setExpanded] = useState(false)
   const others = Object.keys(row.fields).filter((k) => k !== 'header.name' && k !== 'header.state')
+  const summary = ['header.customer', 'header.customer_ref'].map((k) => row.fields[k]?.display).filter(Boolean).join(' · ')
+  const refSelect = refs.length > 0 && (
+    <select value={active ?? ''} onChange={(e) => e.target.value && onPick(e.target.value)} aria-label="Reference">
+      <option value="" disabled>Select a reference…</option>
+      {refs.map((r) => <option key={r.row_id} value={r.row_id}>{r.label}{r.fields['ref.state']?.display ? ` · ${r.fields['ref.state'].display}` : ''}</option>)}
+    </select>
+  )
+  const toggle = active && (
+    <button type="button" className="headtoggle" onClick={() => setExpanded(!expanded)}
+      title={expanded ? 'Hide order details' : 'Show order details'} aria-expanded={expanded}>
+      <ChevronLeftIcon width={16} height={16} style={{ transform: expanded ? 'rotate(90deg)' : 'rotate(-90deg)' }} />
+    </button>
+  )
+
+  if (active && !expanded) {
+    return (
+      <div className="headcard compact">
+        <span className="sonum">{row.fields['header.name']?.display}</span>
+        {summary && <span className="headsum" title={summary}>{summary}</span>}
+        {refSelect}
+        {toggle}
+      </div>
+    )
+  }
   return (
     <div className="headcard">
       <div className="headtitle">
         <span className="caption">{row.fields['header.name']?.label}</span>
         <span className="sonum">{row.fields['header.name']?.display}</span>
+        {toggle}
       </div>
       <dl className="headfields">
         {others.map((k) => (
@@ -22,15 +51,10 @@ function HeaderCard({ row, refs, active, onPick }: { row: Row; refs: Row[]; acti
             <dd>{row.fields[k].display || <em>—</em>}</dd>
           </div>
         ))}
-        {refs.length > 0 && (
+        {refSelect && (
           <div className="hf">
             <dt>Reference</dt>
-            <dd>
-              <select value={active ?? ''} onChange={(e) => e.target.value && onPick(e.target.value)} aria-label="Reference">
-                <option value="" disabled>Select a reference…</option>
-                {refs.map((r) => <option key={r.row_id} value={r.row_id}>{r.label}{r.fields['ref.state']?.display ? ` · ${r.fields['ref.state'].display}` : ''}</option>)}
-              </select>
-            </dd>
+            <dd>{refSelect}</dd>
           </div>
         )}
       </dl>
@@ -53,13 +77,22 @@ function Pager({ info, selected, onPage, onSize }: {
           {PAGE_SIZES.map((n) => <option key={n} value={n}>{n}</option>)}
         </select>
       </label>
-      <button onClick={() => onPage(1)} disabled={info.page <= 1} title="First page">&laquo;</button>
-      <button onClick={() => onPage(info.page - 1)} disabled={info.page <= 1}>&lsaquo; Prev</button>
+      <Button onClick={() => onPage(1)} disabled={info.page <= 1} title="First page">&laquo;</Button>
+      <Button onClick={() => onPage(info.page - 1)} disabled={info.page <= 1}>&lsaquo; Prev</Button>
       <span className="pageno">Page <b>{info.page}</b> of <b>{info.pages}</b></span>
-      <button onClick={() => onPage(info.page + 1)} disabled={info.page >= info.pages}>Next &rsaquo;</button>
-      <button onClick={() => onPage(info.pages)} disabled={info.page >= info.pages} title="Last page">&raquo;</button>
+      <Button onClick={() => onPage(info.page + 1)} disabled={info.page >= info.pages}>Next &rsaquo;</Button>
+      <Button onClick={() => onPage(info.pages)} disabled={info.page >= info.pages} title="Last page">&raquo;</Button>
     </div>
   )
+}
+
+/** The saved file a row would print/preview right now: the user's choice, else the default. */
+function currentFile(row: Row, choice: Choice) {
+  const pdf = row.pdf
+  if (!pdf || pdf.files.length === 0) return null
+  const id = row.line_id as number
+  const current = choice[id] ?? pdf.selected ?? pdf.files[0].id
+  return pdf.files.find((x) => x.id === current) ?? pdf.files[0]
 }
 
 /** The label file(s) found for the line's item code. */
@@ -67,13 +100,12 @@ function LabelCell({ row, choice, setChoice }: { row: Row; choice: Choice; setCh
   const pdf = row.pdf
   if (!pdf || pdf.files.length === 0) return <span className="nopdf">No label file</span>
   const id = row.line_id as number
-  const current = choice[id] ?? pdf.selected ?? pdf.files[0].id
-  const f = pdf.files.find((x) => x.id === current) ?? pdf.files[0]
+  const f = currentFile(row, choice)!
   const where = f.folder.split('/').slice(-2).join(' / ')
   return (
     <span className="pdfcell">
       {pdf.files.length > 1 ? (
-        <select value={current} onChange={(e) => setChoice({ ...choice, [id]: Number(e.target.value) })} title={`${pdf.files.length} label files for ${pdf.code}`}>
+        <select value={f.id} onChange={(e) => setChoice({ ...choice, [id]: Number(e.target.value) })} title={`${pdf.files.length} label files for ${pdf.code}`}>
           {pdf.files.map((x) => <option key={x.id} value={x.id}>{x.folder.split('/').slice(-2).join(' / ')} · {x.name}</option>)}
         </select>
       ) : (
@@ -85,9 +117,13 @@ function LabelCell({ row, choice, setChoice }: { row: Row; choice: Choice; setCh
 
 const stamp = (iso: string | null) => (iso ? new Date(iso).toLocaleString() : '')
 
-/** The Requests column: the number of open requests for the line's item code (click it to read them) and a button to add one.
+/** The Actions column: a Preview button (shows this line's label on the right) and the request-a-label-file flow,
+ *  plus the number of open requests for the item code (click it to read them).
  *  A request is pending until the item code has `expected` label files; it then closes by itself. */
-function RequestsCell({ row, so, onChanged }: { row: Row; so: string; onChanged: () => void }) {
+function RequestsCell(
+  { row, so, onChanged, onPreview, previewItem, previewLabel }:
+  { row: Row; so: string; onChanged: () => void; onPreview: (item: PrintItem, label: string) => void; previewItem: PrintItem; previewLabel: string },
+) {
   const pdf = row.pdf
   const list = pdf?.requests ?? []
   const hasFile = (pdf?.files.length ?? 0) > 0
@@ -135,38 +171,60 @@ function RequestsCell({ row, so, onChanged }: { row: Row; so: string; onChanged:
 
   return (
     <>
-      <td className="reqtd">
-        {!missingAsked && <button className="reqbtn" onClick={toggleOpen} title={hasFile ? 'Ask for another or a changed label file' : 'Ask for this label file to be made or uploaded'}>Request</button>}
+      <td className="reqtd actionstd" onClick={(e) => e.stopPropagation()}>
+        <div className="rowactions">
+          <Button className="previewbtn" disabled={!hasFile} onClick={() => onPreview(previewItem, previewLabel)}
+            title={hasFile ? 'Preview this label on the right' : 'No label file yet'} aria-label="Preview"><EyeIcon /></Button>
+          <Button className="reqbtn" disabled={missingAsked} onClick={toggleOpen}
+            title={missingAsked ? 'Already requested — this label file has been asked for' : hasFile ? 'Request an additional image or a change to this label' : 'Request this label file to be made or uploaded'}
+            aria-label="Request"><FlagIcon /></Button>
+        </div>
       </td>
-      <td className="reqtd reqnumtd">
+      <td className="reqtd reqnumtd" onClick={(e) => e.stopPropagation()}>
         {list.length > 0 ? (
-          <button className="reqnum" onClick={toggleOpen}
-            title={`${list.length} open request${list.length > 1 ? 's' : ''}: click to see them`}>{list.length}</button>
+          <Button className="reqnum" onClick={toggleOpen}
+            title={`${list.length} open request${list.length > 1 ? 's' : ''}: click to see them`}>{list.length}</Button>
         ) : (
           <span className="reqnum zero" aria-label="No open requests">0</span>  /* nothing to open: plain text, not a link */
         )}
       {open && (
         <div className="reqpop" ref={pop} style={{ top: at.top, bottom: at.bottom, right: at.right }} role="dialog" aria-label={`Requests for ${pdf?.code}`}>
-          <div className="reqpop-head"><b>Requests for {pdf?.code}</b><small>Label files now: {pdf?.file_count ?? 0}</small></div>
-          {list.length === 0 && <p className="muted small">No requests yet.</p>}
-          {list.map((q) => (
-            <div key={q.id} className="reqitem">
-              <div><b>{KIND_LABEL[q.kind]}</b>{q.note && <> &mdash; {q.note}</>}</div>
-              <small>{q.requested_by_name}{stamp(q.created_at) && ` · ${stamp(q.created_at)}`}</small>
-              <small className="wait">{q.kind === 'change' ? 'Pending: until the change is done (closed with Done on the Requests tab)' : `Pending: ${q.files_now} of ${q.expected} label files`}</small>
+          <div className="reqpop-head">
+            <span className="reqpop-icon"><FlagIcon width={15} height={15} /></span>
+            <div className="reqpop-title">
+              <b>Request &middot; {pdf?.code}</b>
+              <small>{pdf?.file_count ?? 0} label file{pdf?.file_count === 1 ? '' : 's'} saved now</small>
             </div>
-          ))}
+            <button type="button" className="reqpop-close" onClick={() => setOpen(false)} aria-label="Close">&times;</button>
+          </div>
+          {list.length === 0 && <p className="muted small">No requests yet.</p>}
+          {list.length > 0 && (
+            <div className="reqpop-list">
+              {list.map((q) => (
+                <div key={q.id} className="reqitem">
+                  <div className="reqitem-top">
+                    <span className={`reqkind reqkind-${q.kind}`}>{KIND_LABEL[q.kind]}</span>
+                    <small>{q.requested_by_name}{stamp(q.created_at) && ` · ${stamp(q.created_at)}`}</small>
+                  </div>
+                  {q.note && <p className="reqitem-note">{q.note}</p>}
+                  <small className="wait">{q.kind === 'change' ? 'Pending: until the change is done (closed with Done on the Requests tab)' : `Pending: ${q.files_now} of ${q.expected} label files`}</small>
+                </div>
+              ))}
+            </div>
+          )}
           {hasFile ? (
             <div className="reqform">
               <b className="small">New request</b>
-              <label className="reqopt"><input type="radio" name={`kind-${row.row_id}`} checked={kind === 'additional'} onChange={() => setKind('additional')} /> {KIND_LABEL.additional}</label>
-              <label className="reqopt"><input type="radio" name={`kind-${row.row_id}`} checked={kind === 'change'} onChange={() => setKind('change')} /> {KIND_LABEL.change}</label>
+              <div className="reqkindpick">
+                <button type="button" className={kind === 'additional' ? 'on' : ''} onClick={() => setKind('additional')}>{KIND_LABEL.additional}</button>
+                <button type="button" className={kind === 'change' ? 'on' : ''} onClick={() => setKind('change')}>{KIND_LABEL.change}</button>
+              </div>
               <textarea rows={2} value={note} onChange={(e) => setNote(e.target.value)} maxLength={1000} autoFocus
                 placeholder={kind === 'change' ? 'What has to be changed? e.g. fix the barcode, new logo…' : 'Which image do you need? e.g. a version without logo, a new size… (optional)'} />
-              <button className="primary" onClick={send} disabled={busy || (kind === 'change' && !note.trim())}>{busy ? 'Sending…' : 'Send request'}</button>
+              <Button variant="primary" onClick={send} disabled={busy || (kind === 'change' && !note.trim())}>{busy ? 'Sending request…' : 'Send request'}</Button>
             </div>
           ) : missingAsked ? null : (
-            <div className="reqform"><button className="primary" onClick={send} disabled={busy}>{busy ? 'Requesting…' : 'Request this label file'}</button></div>
+            <div className="reqform"><Button variant="primary" onClick={send} disabled={busy}>{busy ? 'Requesting…' : 'Request this label file'}</Button></div>
           )}
           {err && <small className="error">{err}</small>}
         </div>
@@ -176,8 +234,9 @@ function RequestsCell({ row, so, onChanged }: { row: Row; so: string; onChanged:
   )
 }
 
-function LinesTable({ group, so, onChanged, picked, setPicked, choice, setChoice }: {
+function LinesTable({ group, so, onChanged, picked, setPicked, choice, setChoice, onPreview, previewedLineId }: {
   group: Group; so: string; onChanged: () => void; picked: Picked; setPicked: (p: Picked) => void; choice: Choice; setChoice: (c: Choice) => void
+  onPreview: (item: PrintItem, label: string) => void; previewedLineId: number | null
 }) {
   const [page, setPage] = useState(1)
   const [size, setSize] = useState(loadPageSize)
@@ -195,23 +254,24 @@ function LinesTable({ group, so, onChanged, picked, setPicked, choice, setChoice
         <table className="grid">
           <thead>
             <tr>
-              <th className="rowcheck" />
               {COLUMNS.map((k) => <th key={k}>{head?.[k]?.label ?? k}</th>)}
               <th>Label file</th>
-              <th className="reqhead">Request</th>
-              <th className="reqhead reqnumhead" title="Open requests for the item code. Click a number to read them.">No. Of Req.</th>
+              <th className="reqhead">Actions</th>
+              <th className="reqhead reqnumhead" title="Open requests for the item code. Click a number to read them.">Req.</th>
             </tr>
           </thead>
           <tbody>
             {rows.map((r) => {
               const on = r.line_id !== null && picked.includes(r.line_id)
+              const tickable = canTick(r)
+              const previewing = r.line_id !== null && r.line_id === previewedLineId
               const cls = r.disabled_kind === 'no_label' ? (r.pdf?.request ? 'requested' : 'nolabel') : r.disabled ? 'disabled' : on ? 'picked' : ''
+              const rowToggle = () => { if (tickable) setPicked(toggle(picked, r)) }
+              const file = currentFile(r, choice)
+              const previewLabel = [r.pdf?.code, file?.name].filter(Boolean).join(' · ')
               return (
-                <tr key={r.row_id} className={cls} title={r.disabled ? r.disabled_reason : undefined}>
-                  <th className="rowcheck">
-                    <input type="checkbox" disabled={!canTick(r)} checked={on} onChange={() => setPicked(toggle(picked, r))}
-                      title={r.disabled ? r.disabled_reason : `Print the label for ${r.label}`} />
-                  </th>
+                <tr key={r.row_id} className={`${cls}${tickable ? ' rowclick' : ''}${previewing ? ' previewing' : ''}`}
+                  title={r.disabled ? r.disabled_reason : tickable ? `Click to print the label for ${r.label}` : undefined} onClick={rowToggle}>
                   {COLUMNS.map((k) => {
                     const f = r.fields[k]
                     return (
@@ -221,8 +281,10 @@ function LinesTable({ group, so, onChanged, picked, setPicked, choice, setChoice
                       </td>
                     )
                   })}
-                  <td><LabelCell row={r} choice={choice} setChoice={setChoice} /></td>
-                  <RequestsCell row={r} so={so} onChanged={onChanged} />
+                  {/* Stops the row's click-to-toggle so opening the label-file dropdown doesn't re-render the row shut. */}
+                  <td onClick={(e) => e.stopPropagation()}><LabelCell row={r} choice={choice} setChoice={setChoice} /></td>
+                  <RequestsCell row={r} so={so} onChanged={onChanged} onPreview={onPreview} previewLabel={previewLabel}
+                    previewItem={{ line_id: r.line_id as number, file_id: choice[r.line_id as number] ?? r.pdf?.selected ?? null }} />
                 </tr>
               )
             })}
@@ -234,8 +296,9 @@ function LinesTable({ group, so, onChanged, picked, setPicked, choice, setChoice
   )
 }
 
-export default function OrderView({ resolved, onChanged, picked, setPicked, choice, setChoice }: {
+export default function OrderView({ resolved, onChanged, picked, setPicked, choice, setChoice, onPreview, previewedLineId }: {
   resolved: Resolved; onChanged: () => void; picked: Picked; setPicked: (p: Picked) => void; choice: Choice; setChoice: (c: Choice) => void
+  onPreview: (item: PrintItem, label: string) => void; previewedLineId: number | null
 }) {
   const refs = resolved.groups.find((g) => g.id === 'references')
   const hasRefs = !!refs && refs.rows.length > 0
@@ -269,8 +332,8 @@ export default function OrderView({ resolved, onChanged, picked, setPicked, choi
             visible(g).rows.length === 0
               ? <p className="muted pad">No order line with an item code is moved by {chosen?.label}.</p>
               : filterRows(visible(g).rows, q).length === 0
-                ? <p className="muted pad">No order line matches &ldquo;{q.trim()}&rdquo;. <button className="link" onClick={() => setQ('')}>Clear the search</button></p>
-                : <LinesTable key={`${chosen?.row_id ?? 'all'}|${q.trim()}`} so={resolved.so} onChanged={onChanged} group={{ ...visible(g), rows: filterRows(visible(g).rows, q) }} picked={picked} setPicked={setPicked} choice={choice} setChoice={setChoice} />
+                ? <p className="muted pad">No order line matches &ldquo;{q.trim()}&rdquo;. <Button variant="link" onClick={() => setQ('')}>Clear the search</Button></p>
+                : <LinesTable key={`${chosen?.row_id ?? 'all'}|${q.trim()}`} so={resolved.so} onChanged={onChanged} group={{ ...visible(g), rows: filterRows(visible(g).rows, q) }} picked={picked} setPicked={setPicked} choice={choice} setChoice={setChoice} onPreview={onPreview} previewedLineId={previewedLineId} />
           )}
         </section>
       ))}

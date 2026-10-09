@@ -1,5 +1,6 @@
 import { Fragment, useEffect, useState } from 'react'
 import { ApiError, api, apiBlob } from '../api'
+import Button from '../components/Button'
 import type { Job, Me } from '../types'
 
 export default function History({ me }: { me: Me }) {
@@ -15,7 +16,7 @@ export default function History({ me }: { me: Me }) {
   const reprint = async (j: Job) => {
     setError(''); setMsg('')
     try {
-      const { blob, headers } = await apiBlob(`/print-jobs/${j.id}/reprint`, {})
+      const { blob, headers } = await apiBlob(`/print-jobs/${j.id}/reprint`, {}, 'Reprint logged')
       window.open(URL.createObjectURL(blob), '_blank')
       const src = headers.get('X-Reprint-Source')
       setMsg(`Reprinted job #${j.id} as #${headers.get('X-Print-Job-Id')} from the ${src === 'snapshot' ? 'files kept at print time' : 'label folder'}.`)
@@ -25,10 +26,9 @@ export default function History({ me }: { me: Me }) {
 
   return (
     <div className="panel wide">
-      <h3>Print history</h3>
       <form className="searchbar" onSubmit={(e) => { e.preventDefault(); load() }}>
         <input value={so} onChange={(e) => setSo(e.target.value)} placeholder="Filter by SO number" />
-        <button>Filter</button>
+        <Button type="submit">Filter</Button>
       </form>
       {error && <p className="error">{error}</p>}
       {msg && <p className="ok">{msg}</p>}
@@ -44,8 +44,8 @@ export default function History({ me }: { me: Me }) {
                 <td>{j.items.map((i) => i.code).join(', ')}</td>
                 <td>{j.copies}</td><td>{j.printer}</td>
                 <td>
-                  <button className="link" onClick={() => setOpen(open === j.id ? null : j.id)}>{open === j.id ? 'Hide' : 'Files'}</button>{' '}
-                  {me.role !== 'viewer' && <button onClick={() => reprint(j)}>Reprint</button>}
+                  <Button variant="link" onClick={() => setOpen(open === j.id ? null : j.id)}>{open === j.id ? 'Hide' : 'Files'}</Button>{' '}
+                  {me.role !== 'viewer' && <Button onClick={() => reprint(j)}>Reprint</Button>}
                 </td>
               </tr>
               {open === j.id && (

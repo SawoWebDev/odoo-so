@@ -1,0 +1,6 @@
+# Local-only: exposes the backend on the host so `npm run dev` (Vite) can proxy /api to it.
+# Not meant to be committed — safe to delete any time; Docker Compose loads it automatically alongside docker-compose.yml.
+services:
+  backend:
+    ports:
+      - "8000:8000"

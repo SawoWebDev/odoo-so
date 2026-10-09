@@ -57,7 +57,7 @@ def add_location(body: LocationIn, user: CurrentUser = Depends(require_role("tem
         except LocationError as e:
             results.append({"url": link, "ok": False, "error": str(e)})
             continue
-        audit(db, user.uid, "label_add", detail=f"{loc.folder} files={result['files']}")
+        audit(db, user, "label_add", detail=f"{loc.folder} files={result['files']}")
         results.append({"url": link, "ok": True, "files": result["files"], "absorbed": result.get("absorbed", 0)})
         last = (loc, result)
     if last is None:  # nothing could be added: say why (the first reason)
@@ -73,7 +73,7 @@ def remove_location(loc_id: int, user: CurrentUser = Depends(require_role("templ
     loc = _loc(db, loc_id)
     folder = loc.folder
     store.remove_location(db, loc)
-    audit(db, user.uid, "label_remove", detail=folder)
+    audit(db, user, "label_remove", detail=folder)
     return {"ok": True}
 
 
@@ -86,7 +86,7 @@ def fetch_location(loc_id: int, user: CurrentUser = Depends(require_role("printe
         result = store.fetch(db, loc, settings)
     except LocationError as e:
         raise HTTPException(409, str(e))
-    audit(db, user.uid, "label_fetch", detail=f"{loc.folder} {result}")
+    audit(db, user, "label_fetch", detail=f"{loc.folder} {result}")
     return {"location": store.location_json(db, loc), "result": result}
 
 
@@ -105,7 +105,7 @@ def rescan(user: CurrentUser = Depends(require_role("printer")), db: Session = D
         results.append({"id": loc.id, "added": r["added"], "restored": r["restored"], "now_missing": r["now_missing"],
                         "files": r["files"], "ok": r["files"], "missing": store.location_json(db, loc)["missing"],
                         "changed": r["added"] + r["restored"] + r["now_missing"]})
-    audit(db, user.uid, "label_rescan", detail=str(results)[:500])
+    audit(db, user, "label_rescan", detail=str(results)[:500])
     return {"results": results, **_status(db)}
 
 
@@ -149,7 +149,7 @@ def delete_file(file_id: int, user: CurrentUser = Depends(require_role("printer"
         name = store.delete_missing_file(db, file_id)
     except LocationError as e:
         raise HTTPException(409, str(e))
-    audit(db, user.uid, "label_delete", detail=name)
+    audit(db, user, "label_delete", detail=name)
     return {"ok": True}
 
 

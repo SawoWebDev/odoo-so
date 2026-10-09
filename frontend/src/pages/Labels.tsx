@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { ApiError, api } from '../api'
+import Button from '../components/Button'
 import type { LabelSearch, LabelStatus, Me } from '../types'
 
 const EXAMPLE = 'file://172.16.0.4/Marketing/00%20MASTERLIST/01%20PRINTING%20FILES/01%20SAWO/'
@@ -71,7 +72,6 @@ export default function Labels({ me }: { me: Me }) {
 
   return (
     <div className="panel wide">
-      <h3>Label files</h3>
       <p className="muted small">
         Add the folder that holds the labels. Every PDF and image (PNG, JPG, GIF, BMP, TIFF, WebP) in it and in all its sub-folders: its name and location is saved here, and printing fetches the file
         from its saved location. If a file is later renamed or deleted, its row turns <b className="redtext">red</b>.
@@ -81,7 +81,7 @@ export default function Labels({ me }: { me: Me }) {
         <form className="searchbar addbar" onSubmit={(e) => { e.preventDefault(); add() }}>
           <textarea value={url} onChange={(e) => setUrl(e.target.value)} placeholder={`${EXAMPLE}\nOne link per line to add several folders at once`}
             rows={Math.min(6, Math.max(1, url.split('\n').length))} spellCheck={false} />
-          <button className="primary" disabled={!!busy || !url.trim()}>{busy === 'add' ? 'Reading folders…' : 'Add folder(s)'}</button>
+          <Button type="submit" variant="primary" disabled={!!busy || !url.trim()}>{busy === 'add' ? 'Reading folders…' : 'Add folder(s)'}</Button>
         </form>
       )}
       {admin && <p className="muted small">Accepts <code>file://server/share/folder</code>, <code>\\server\share\folder</code> or <code>//server/share/folder</code>; the share must be the one connected to the app.</p>}
@@ -98,9 +98,9 @@ export default function Labels({ me }: { me: Me }) {
                 <td className={l.missing ? 'redtext' : ''}>{l.missing}</td>
                 <td>{when(l.last_fetched_at)}</td><td>{when(l.last_checked_at)}</td>
                 <td className="nowrap">
-                  {canCheck && <button disabled={!!busy} onClick={() => fetchNew(l.id, l.url)} title="Scan this folder and all its sub-folders again: save every new PDF and image, flag the ones that are gone">{busy === `fetch${l.id}` ? 'Scanning…' : '↻ Rescan'}</button>}{' '}
-                  <button className="link" disabled={!!busy} onClick={() => showReport(l.id)} title="List every sub-folder found on the share and the files in each">{busy === `rep${l.id}` ? 'Checking…' : 'Scan report'}</button>{' '}
-                  {admin && <button className="link" disabled={!!busy} onClick={() => remove(l.id, l.folder)}>Remove</button>}
+                  {canCheck && <Button disabled={!!busy} onClick={() => fetchNew(l.id, l.url)} title="Scan this folder and all its sub-folders again: save every new PDF and image, flag the ones that are gone">{busy === `fetch${l.id}` ? 'Scanning…' : '↻ Rescan'}</Button>}{' '}
+                  <Button variant="link" disabled={!!busy} onClick={() => showReport(l.id)} title="List every sub-folder found on the share and the files in each">{busy === `rep${l.id}` ? 'Checking…' : 'Scan report'}</Button>{' '}
+                  {admin && <Button variant="link" disabled={!!busy} onClick={() => remove(l.id, l.folder)}>Remove</Button>}
                 </td>
               </tr>
             ))}
@@ -113,7 +113,7 @@ export default function Labels({ me }: { me: Me }) {
         <div className="scanreport">
           <div className="scanhead">
             <b>Scan report</b> <span className="muted small">{rep.url}</span>
-            <button className="link" onClick={() => setRep(null)}>Close</button>
+            <Button variant="link" onClick={() => setRep(null)}>Close</Button>
           </div>
           <p className="small">
             <b>{rep.folders.toLocaleString()}</b> sub-folders found on the share ({rep.empty_folders} with no PDF or image) &middot; <b>{rep.on_share.toLocaleString()}</b> label
@@ -149,7 +149,7 @@ export default function Labels({ me }: { me: Me }) {
         <select value={only} onChange={(e) => { setOnly(e.target.value); setPage(1); loadFiles(q, e.target.value, 1) }} style={{ width: 'auto' }}>
           <option value="">All files</option><option value="missing">Not found only (red)</option><option value="ok">Found only</option>
         </select>
-        <button>Search</button>
+        <Button type="submit">Search</Button>
       </form>
       {res && (
         <>
@@ -164,7 +164,7 @@ export default function Labels({ me }: { me: Me }) {
                   <td>{f.status === 'missing' ? 'Not found' : 'OK'}</td>
                   <td className="trash">
                     {f.status === 'missing' && canCheck && (
-                      <button className="icon" disabled={!!busy} onClick={() => del(f.id, f.name)} title="This file is gone: delete its saved record" aria-label={`Delete record of ${f.name}`}>🗑</button>
+                      <Button variant="icon" disabled={!!busy} onClick={() => del(f.id, f.name)} title="This file is gone: delete its saved record" aria-label={`Delete record of ${f.name}`}>🗑</Button>
                     )}
                   </td>
                 </tr>
@@ -173,8 +173,8 @@ export default function Labels({ me }: { me: Me }) {
             </tbody>
           </table>
           <div className="actions">
-            <button disabled={page <= 1} onClick={() => { setPage(page - 1); loadFiles(q, only, page - 1) }}>&lsaquo; Prev</button>
-            <button disabled={page >= pages} onClick={() => { setPage(page + 1); loadFiles(q, only, page + 1) }}>Next &rsaquo;</button>
+            <Button disabled={page <= 1} onClick={() => { setPage(page - 1); loadFiles(q, only, page - 1) }}>&lsaquo; Prev</Button>
+            <Button disabled={page >= pages} onClick={() => { setPage(page + 1); loadFiles(q, only, page + 1) }}>Next &rsaquo;</Button>
           </div>
         </>
       )}

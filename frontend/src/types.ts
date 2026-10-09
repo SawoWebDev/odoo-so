@@ -1,6 +1,7 @@
 export type Role = 'viewer' | 'printer' | 'template_admin'
 
-export interface Me { uid: number; login: string; name: string; role: Role }
+/** viewing_as is set while an admin sees the app as this person; admin_name is the admin who is really signed in. */
+export interface Me { uid: number; login: string; name: string; role: Role; viewing_as?: { admin_name: string } | null }
 
 export interface FieldVal { label: string; raw: unknown; display: string; type: string; uom: string | null }
 

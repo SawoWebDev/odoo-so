@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { ApiError, api } from '../api'
+import Button from '../components/Button'
 import type { Me } from '../types'
 
 export default function Login({ onLogin }: { onLogin: (m: Me) => void }) {
@@ -30,7 +31,7 @@ export default function Login({ onLogin }: { onLogin: (m: Me) => void }) {
           <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="current-password" required />
         </label>
         {error && <p className="error">{error}</p>}
-        <button className="primary" disabled={busy}>{busy ? 'Signing in…' : 'Sign in'}</button>
+        <Button type="submit" variant="primary" disabled={busy}>{busy ? 'Signing in…' : 'Sign in'}</Button>
         <p className="muted small">Read-only: this tool never writes to Odoo. Your password is kept encrypted in a short-lived server session and is never stored.</p>
       </form>
     </div>

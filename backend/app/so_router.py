@@ -36,7 +36,7 @@ def get_so(name: str, refresh: bool = False, user: CurrentUser = Depends(current
            db: Session = Depends(get_db)):
     """The order from Odoo, with the matching label PDF(s) found for every order line."""
     data = resolve_or_http(client, settings, name, refresh)
-    audit(db, user.uid, "search", data["so"])
+    audit(db, user, "search", data["so"])
     resolve_matching(db)
     asked = {k: {"id": r.id, "created_at": request_json(r)["created_at"], "requested_by_name": r.requested_by_name}
              for k, r in open_by_code(db).items()}

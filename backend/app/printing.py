@@ -135,7 +135,7 @@ def print_labels(body: PrintIn, user: CurrentUser = Depends(require_role("printe
     job = LabelPrintJob(so_name=so, user_uid=user.uid, items_json=items, copies=copies, printer=body.printer[:128])
     db.add(job)
     db.commit()
-    audit(db, user.uid, "print", so, f"job={job.id} labels={len(chosen) * copies}")
+    audit(db, user, "print", so, f"job={job.id} labels={len(chosen) * copies}")
     return _respond(parts, {"X-Print-Job-Id": str(job.id), "X-Label-Count": str(len(chosen) * copies)}, settings)
 
 
@@ -194,5 +194,5 @@ def reprint(job_id: int, body: ReprintIn, user: CurrentUser = Depends(require_ro
                         reprint_of=j.id)
     db.add(new)
     db.commit()
-    audit(db, user.uid, "reprint", j.so_name, f"job={new.id} reprint_of={j.id}")
+    audit(db, user, "reprint", j.so_name, f"job={new.id} reprint_of={j.id}")
     return _respond(parts, {"X-Print-Job-Id": str(new.id), "X-Reprint-Source": "+".join(sorted(sources))}, settings)

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { ApiError, api } from '../api'
+import Button from '../components/Button'
 import { KIND_LABEL, type LabelRequests, type Me } from '../types'
 
 const when = (iso: string | null) => (iso ? new Date(iso).toLocaleString() : '—')
@@ -37,7 +38,6 @@ export default function Requests({ me }: { me: Me }) {
 
   return (
     <div className="panel wide">
-      <h3>Label requests</h3>
       <p className="muted small">
         From the Trace &amp; print tab, a line with <b>no label file</b> can be requested; the request closes by itself when a label file for that
         item code is added to <b>Label files</b> (Read folder), and its link is kept under Solved. A line that <b>has</b> a label file can be
@@ -46,9 +46,9 @@ export default function Requests({ me }: { me: Me }) {
         is closed with <b>Done</b> when the work is finished.
       </p>
       <div className="actions">
-        <button className={status === 'open' ? 'primary' : ''} onClick={() => setStatus('open')}>Open{data ? ` (${data.counts.open})` : ''}</button>
-        <button className={status === 'solved' ? 'primary' : ''} onClick={() => setStatus('solved')}>Solved{data ? ` (${data.counts.solved})` : ''}</button>
-        <button onClick={() => load()} title="Check again">↻ Refresh</button>
+        <Button variant={status === 'open' ? 'primary' : 'default'} onClick={() => setStatus('open')}>Open{data ? ` (${data.counts.open})` : ''}</Button>
+        <Button variant={status === 'solved' ? 'primary' : 'default'} onClick={() => setStatus('solved')}>Solved{data ? ` (${data.counts.solved})` : ''}</Button>
+        <Button onClick={() => load()} title="Check again">↻ Refresh</Button>
       </div>
       {error && <p className="error">{error}</p>}
       {data && (
@@ -70,8 +70,8 @@ export default function Requests({ me }: { me: Me }) {
                   <><td>{when(r.solved_at)}</td><td className="path" title={r.file_url ?? ''}>{r.kind === 'change' || !r.file_name ? <em>done</em> : <><b>{r.file_name}</b><br />{r.file_url}</>}</td></>
                 ) : (
                   <td className="nowrap">
-                    {r.kind !== 'missing' && <button disabled={busy} onClick={() => done(r.id)} title="Close this request now">Done</button>}{' '}
-                    {(admin || r.requested_by === me.uid) && <button className="link" disabled={busy} onClick={() => del(r.id, r.code)}>Delete</button>}
+                    {r.kind !== 'missing' && <Button disabled={busy} onClick={() => done(r.id)} title="Close this request now">Done</Button>}{' '}
+                    {(admin || r.requested_by === me.uid) && <Button variant="link" disabled={busy} onClick={() => del(r.id, r.code)}>Delete</Button>}
                   </td>
                 )}
               </tr>
