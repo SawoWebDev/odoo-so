@@ -61,7 +61,7 @@ export interface LocationInfo {
   id: number; url: string; folder: string; reachable: boolean; files: number; missing: number
   last_fetched_at: string | null; last_checked_at: string | null
 }
-export interface LabelStatus { locations: LocationInfo[]; files: number; missing: number; codes: number }
+export interface LabelStatus { locations: LocationInfo[]; files: number; missing: number; codes: number; default_location: string }
 
 /** One saved file in the Label files list. status "missing" = renamed, moved or deleted since it was saved. */
 export interface LabelRow {

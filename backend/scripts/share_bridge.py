@@ -4,7 +4,7 @@ Run this on the Windows PC (it uses the PC's own, already signed-in access to th
 browser does). It only listens on this PC (127.0.0.1), so nothing else on the network can use it, and it is read-only:
 it can list folders and send files, nothing else. Nothing is copied anywhere.
 
-    python backend\\scripts\\share_bridge.py                       (default share: \\\\172.16.0.4\\Marketing)
+    python backend\\scripts\\share_bridge.py                       (default share: \\\\DATA-SERVER\\Marketing)
     python backend\\scripts\\share_bridge.py --root \\\\server\\share --port 8765
 
 Or double-click start-share-bridge.bat in the project folder.
@@ -15,10 +15,12 @@ import argparse
 import json
 import os
 import sys
+import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlparse
 
-DEFAULT_ROOT = r"\\172.16.0.4\Marketing"
+# By name, not by IP (172.16.0.4): Windows signs in to a server by name on its own, by IP only after a manual login
+DEFAULT_ROOT = r"\\DATA-SERVER\Marketing"
 
 
 class Bridge:
@@ -173,10 +175,14 @@ def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--root", default=os.environ.get("SHARE_BRIDGE_ROOT", DEFAULT_ROOT), help="the share to expose (read-only)")
     ap.add_argument("--port", type=int, default=int(os.environ.get("SHARE_BRIDGE_PORT", "8765")))
+    ap.add_argument("--wait", action="store_true",
+                    help="keep retrying until the share can be opened (for starting at Windows sign-in, before the network is up)")
     a = ap.parse_args()
-    if not os.path.isdir(Bridge(a.root).base):
-        print(f"Cannot open {a.root}. Open it once in Explorer (so Windows signs in), then start this again.")
-        return 1
+    while not os.path.isdir(Bridge(a.root).base):
+        if not a.wait:
+            print(f"Cannot open {a.root}. Open it once in Explorer (so Windows signs in), then start this again.")
+            return 1
+        time.sleep(15)
     httpd = serve(a.root, a.port)
     print(f"Share bridge running for {a.root} on http://127.0.0.1:{a.port}  (read-only, this PC only). Press Ctrl+C to stop.")
     try:

@@ -28,7 +28,7 @@ def _status(db: Session) -> dict:
     locs = [store.location_json(db, loc) for loc in db.query(LabelLocation).order_by(LabelLocation.id)]
     codes = db.query(func.count(func.distinct(LabelFile.code_key))).filter(LabelFile.status == "ok").scalar() or 0
     return {"locations": locs, "files": sum(x["files"] for x in locs), "missing": sum(x["missing"] for x in locs),
-            "codes": codes}
+            "codes": codes, "default_location": get_settings().label_default_location.strip()}
 
 
 def _loc(db: Session, loc_id: int) -> LabelLocation:

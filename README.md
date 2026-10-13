@@ -66,6 +66,10 @@ then `docker compose up -d`. On the **Label files** tab, **Read folder** now lis
 sub-folder and saves its name and `file://` location. Nothing is copied; a file is only fetched when it is previewed or
 printed. If the helper is not running, the app says so and never marks files as missing.
 
+To never start it by hand again, double-click **`install-share-bridge-autostart.bat`** once: it starts the bridge hidden
+(no window) at every Windows sign-in, waiting for the share if the network is not up yet, and starts it right away.
+**`remove-share-bridge-autostart.bat`** undoes that.
+
 ### Connecting the network share - with a Windows login instead
 
 

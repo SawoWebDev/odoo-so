@@ -3,7 +3,7 @@ import { ApiError, api } from '../api'
 import Button from '../components/Button'
 import type { LabelSearch, LabelStatus, Me } from '../types'
 
-const EXAMPLE = 'file://172.16.0.4/Marketing/00%20MASTERLIST/01%20PRINTING%20FILES/01%20SAWO/'
+const EXAMPLE = 'file://172.16.0.4/Marketing/00%20MASTERLIST/01%20PRINTING%20FILES/'
 interface Report {
   id: number; url: string; folders: number; empty_folders: number; on_share: number; saved: number
   not_saved: string[]; unreadable: string[]; rows: { folder: string; on_share: number; saved: number }[]
@@ -34,6 +34,9 @@ export default function Labels({ me }: { me: Me }) {
     try { setSt(await api<LabelStatus>('/labels/status')) } catch (e) { setError(e instanceof ApiError ? e.message : String(e)) }
   }, [])
   useEffect(() => { loadStatus(); loadFiles('', '', 1) }, [loadStatus, loadFiles])
+  // No folder added yet: put the default folder (LABEL_DEFAULT_LOCATION) in the box, so adding it is one click
+  const noFolders = st !== null && st.locations.length === 0
+  useEffect(() => { if (noFolders && st?.default_location) setUrl((u) => u || st.default_location) }, [noFolders, st?.default_location])
 
   const run = async (name: string, fn: () => Promise<void>) => {
     setBusy(name); setError(''); setMsg('')
