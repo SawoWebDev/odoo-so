@@ -28,6 +28,17 @@ export default function Trace({ me, active, onGo }: { me: Me; active: boolean; o
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [recent, setRecent] = useState<string[]>(loadRecent)
+  // Country filter: only orders whose customer is in this country are found, and the search box suggests just those.
+  const [countries, setCountries] = useState<{ id: number; name: string; code: string }[]>([])
+  const [country, setCountry] = useState<number | null>(null)
+  const [countryOrders, setCountryOrders] = useState<{ so: string; customer: string }[] | null>(null)
+  useEffect(() => { api<typeof countries>('/countries').then(setCountries).catch(() => {}) }, [])
+  useEffect(() => {
+    if (!country) { setCountryOrders(null); return }
+    let stale = false
+    api<{ so: string; customer: string }[]>(`/so-list?country=${country}`).then((l) => { if (!stale) setCountryOrders(l) }).catch(() => {})
+    return () => { stale = true }
+  }, [country])
   // A row's own Preview button shows just that line's label on the right; it also ticks the line, since Print / export
   // below the preview acts on whatever is ticked, and it should be ready to go for what is being previewed.
   const [previewReq, setPreviewReq] = useState<{ item: PrintItem; label: string; key: number } | null>(null)
@@ -42,7 +53,8 @@ export default function Trace({ me, active, onGo }: { me: Me; active: boolean; o
     if (!quiet) setBusy(true)
     setError('')
     try {
-      const r = await api<Resolved>(`/so/${encodeURIComponent(so)}${refresh ? '?refresh=true' : ''}`)
+      const q = [refresh && 'refresh=true', country && `country=${country}`].filter(Boolean).join('&')
+      const r = await api<Resolved>(`/so/${encodeURIComponent(so)}${q ? `?${q}` : ''}`)
       if (resolved?.so === r.so) { const [p, c] = prune(r, picked, choice); setPicked(p); setChoice(c) }
       else { setPicked([]); setChoice({}) }
       setResolved(r)
@@ -67,12 +79,38 @@ export default function Trace({ me, active, onGo }: { me: Me; active: boolean; o
           <input value={input} onChange={(e) => setInput(e.target.value)} placeholder="Sales order number, e.g. S00123" autoFocus
             list="recent-so" autoComplete="off" />
           <datalist id="recent-so">
-            {recent.map((so) => <option key={so} value={so} />)}
+            {(countryOrders?.map((o) => o.so) ?? recent).map((so) => <option key={so} value={so} />)}
           </datalist>
+          {countries.length > 0 && (
+            <select value={country ?? ''} onChange={(e) => setCountry(e.target.value ? Number(e.target.value) : null)} aria-label="Country" style={{ width: 'auto' }}>
+              <option value="">All countries</option>
+              {countries.map((c) => <option key={c.id} value={c.id}>{c.name} ({c.code})</option>)}
+            </select>
+          )}
           <Button type="submit" variant="primary" disabled={busy || !input.trim()}>{busy ? 'Loading…' : 'Find SO'}</Button>
           {resolved && <Button type="button" onClick={() => search(resolved.so, true)} disabled={busy} title="Re-read from Odoo and re-check the label folder">↻ Refresh</Button>}
         </form>
         {error && <p className="error">{error}</p>}
+        {country && (
+          <section className="group st-ok">
+            <header>
+              <span className="title">Orders in {countries.find((c) => c.id === country)?.name}</span>
+              {countryOrders && <span className="count">{countryOrders.length}</span>}
+              <Button type="button" variant="link" onClick={() => setCountry(null)}>Clear filter</Button>
+            </header>
+            {!countryOrders ? <p className="muted pad">Loading…</p> : countryOrders.length === 0 ? <p className="muted pad">No sales orders for this country.</p> : (
+              <div className="tablewrap" style={{ maxHeight: 260, overflow: 'auto' }}>
+                <table className="grid"><tbody>
+                  {countryOrders.map((o) => (
+                    <tr key={o.so} className="rowclick" onClick={() => { setInput(o.so); search(o.so) }}>
+                      <td><b>{o.so}</b></td><td>{o.customer}</td>
+                    </tr>
+                  ))}
+                </tbody></table>
+              </div>
+            )}
+          </section>
+        )}
         {!resolved && <StartPanel recent={recent} onOpen={(so) => { setInput(so); search(so) }} onGo={onGo} />}
         {resolved && (
           <OrderView key={resolved.so} resolved={resolved} onChanged={() => search(resolved.so, false, true)}
