@@ -3,7 +3,7 @@ import { ApiError, api } from '../api'
 import Button from '../components/Button'
 import type { LabelSearch, LabelStatus, Me } from '../types'
 
-const EXAMPLE = 'file://172.16.0.4/Marketing/00%20MASTERLIST/01%20PRINTING%20FILES/'
+const EXAMPLE = 'file://172.16.0.4/Marketing/00%20MASTERLIST/01%20PRINTING%20FILES/01%20STICKERS/01%20READY%20TO%20PRINT/'
 interface Report {
   id: number; url: string; folders: number; empty_folders: number; on_share: number; saved: number
   not_saved: string[]; unreadable: string[]; rows: { folder: string; on_share: number; saved: number }[]
